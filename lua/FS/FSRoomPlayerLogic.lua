@@ -1,4 +1,5 @@
 ---@class FSRoomPlayer
+---@field playerId string
 ---@field userId string userId
 ---@field name string 玩家名字
 ---@field room FSRoom player所属房间
@@ -19,13 +20,15 @@ local FSRoomPlayer = require("FSRoomPlayerData")
 local TimeMgr = require("TimeMgrLogic");
 
 ---构造新的FSRoomPlayer对象
+---@param playerId string
 ---@param userId string
 ---@param room FSRoom
 ---@return FSRoomPlayer
-function FSRoomPlayer.new(userId, room)
+function FSRoomPlayer.new(playerId, userId, room)
     ---@type FSRoomPlayer
     local newObj          = setmetatable({}, FSRoomPlayer);
 
+    newObj.playerId       = playerId;
     newObj.userId         = userId;
     newObj.name           = "";
     newObj.room           = room;

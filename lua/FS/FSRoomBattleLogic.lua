@@ -122,7 +122,7 @@ function FSRoomBattle:ProcessSkill(player, data)
     local targets = {};
     if targetUserId then
         local target = self.room:GetRoomPlayer(targetUserId);
-        if target then
+        if target ~= nil then
             if target:IsAlive() then
                 table.insert(targets, target);
             end
@@ -156,6 +156,38 @@ function FSRoomBattle:ProcessSkill(player, data)
         skillName = skill.name,
         results = skillResults
     };
+end
+
+function FSRoomBattle:UpdateFrame()
+    -- 为所有玩家更新技能冷却
+    for _, player in pairs(self.room.roomPlayers) do
+        if player:IsAlive() then
+            player:UpdateCooldowns();
+        end
+    end
+end
+
+--- 检查游戏是否结束了 只剩一个人或一个人不剩
+---@return boolean 是否结束,string|nil 胜利者userId
+function FSRoomBattle:CheckGameEnd()
+    -- 还活着的玩家
+    ---@type table<integer,FSRoomPlayer>
+    local alivePlayers = {};
+    for _, player in pairs(self.room.roomPlayers) do
+        if player:IsAlive() then
+            table.insert(alivePlayers, player);
+        end
+    end
+
+    if #alivePlayers <= 1 then
+        local winnerUserId = nil;
+        if #alivePlayers == 1 then
+            winnerUserId = alivePlayers[1].userId;
+        end
+        return true, winnerUserId;
+    end
+
+    return false, nil;
 end
 
 return FSRoomBattle;
