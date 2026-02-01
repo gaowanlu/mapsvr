@@ -6,8 +6,12 @@
 ---@field state string
 ---@field lastUpdateStateTime integer
 ---@field maxPlayers integer
+---@field map FSRoomMap
+---@field battle FSRoomBattle
 local FSRoom = require("FSRoomData")
 local Log = require("Log")
+local FSRoomMap = require("FSRoomMapLogic");
+local FSRoomBattle = require("FSRoomBattleLogic");
 
 -- Room states
 FSRoom.STATE_WAITING = "waiting"
@@ -34,6 +38,15 @@ function FSRoom.new(roomId, maxPlayers)
     self.state = FSRoom.STATE_WAITING;
     self.lastUpdateStateTime = 0;
     self.maxPlayers = maxPlayers;
+
+    -- 初始化房间地图
+    self.map = FSRoomMap.new(100, 100);
+    self.map:GenerateBorderWalls();
+    self.map:GenerateRandomObstacles(10);
+
+    -- 初始化Battle
+    self.battle = FSRoomBattle.new(self, self.map);
+
     return self
 end
 
@@ -60,6 +73,12 @@ end
 ---@param playerId string
 ---@param userId string
 function FSRoom:RemovePlayerFromRoom(playerId, userId)
+    -- TODO
+end
+
+---@param userId string
+---@return FSRoomPlayer|nil
+function FSRoom:GetRoomPlayer(userId)
     -- TODO
 end
 

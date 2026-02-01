@@ -50,6 +50,8 @@ function FSRoomMap:SetTile(x, y, tileType)
     end
 end
 
+---@param x integer
+---@param y integer
 ---@return string tileType
 function FSRoomMap:GetTile(x, y)
     if self:IsValidPosition(x, y) then
@@ -58,6 +60,8 @@ function FSRoomMap:GetTile(x, y)
     return FSRoomMap.TILE_WALL;
 end
 
+---@param x integer
+---@param y integer
 ---@return boolean
 function FSRoomMap:IsWalkable(x, y)
     if not self:IsValidPosition(x, y) then
@@ -112,16 +116,17 @@ function FSRoomMap:GenerateRandomObstacles(count)
     end
 end
 
+---@class FSRoomMapPoint
+---@field x integer
+---@field y integer
+
 --- 简单的A* 路径查找 暂不支持对角线移动 暂不支持地形权重
 ---@param startX integer
 ---@param startY integer
 ---@param endX integer
 ---@param endY integer
+---@return table<integer,FSRoomMapPoint>|nil
 function FSRoomMap:FindPath(startX, startY, endX, endY)
-    ---@class Point
-    ---@field x integer
-    ---@field y integer
-
     -- 如果终点不可行走，直接返回nil
     if not self:IsWalkable(endX, endY) then
         return nil;
@@ -133,14 +138,14 @@ function FSRoomMap:FindPath(startX, startY, endX, endY)
     end
 
     -- 待评估节点集合
-    ---@type table<integer,Point>
+    ---@type table<integer,FSRoomMapPoint>
     local openSet = {};
     -- 已评估节点集合
     ---@type table<integer,boolean>
     local closedSet = {};
 
     -- 路径追踪表，记录每个节点来自哪里
-    ---@type table<integer,Point>
+    ---@type table<integer,FSRoomMapPoint>
     local cameFrom = {};
 
     -- 从起点到当前节点的实际代价
@@ -188,7 +193,7 @@ function FSRoomMap:FindPath(startX, startY, endX, endY)
         ---@type integer|nil
         local currenyKey
 
-        ---@type Point|nil
+        ---@type FSRoomMapPoint|nil
         local current
         local lowestF = math.huge
 
@@ -212,7 +217,7 @@ function FSRoomMap:FindPath(startX, startY, endX, endY)
         closedSet[currenyKey] = true
 
         -- 四方向邻居（上下左右）
-        ---@type table<integer,Point>
+        ---@type table<integer,FSRoomMapPoint>
         local neighbors = {
             { x = current.x - 1, y = current.y },
             { x = current.x + 1, y = current.y },

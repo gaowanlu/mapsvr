@@ -1,0 +1,161 @@
+---@class FSRoomBattle
+---@field room FSRoom
+---@field map FSRoomMap
+local FSRoomBattle = require("FSRoomBattleData");
+
+--- 创建新的FSRoomBattle对象
+---@param room FSRoom
+---@param map FSRoomMap
+---@return FSRoomBattle
+function FSRoomBattle.new(room, map)
+    ---@type FSRoomBattle
+    local self = setmetatable({}, FSRoomBattle);
+
+    self.room = room;
+    self.map = map;
+
+    return self;
+end
+
+--- 房间接收到新的帧指令
+---@param command FSRoomSyncFrameCommandType
+function FSRoomBattle:ProcessCommand(command)
+    local player = self.room:GetRoomPlayer(command.userId);
+    if not player or not player:IsAlive() then
+        return { success = false, error = "RoomPlayer not found or dead" };
+    end
+
+    local result = { success = true, commandType = command.commandType };
+
+    if command.commandType == "move" then
+        result = self:ProcessMove(player, command.data);
+    elseif command.commandType == "skill" then
+        result = self:ProcessSkill(player, command.data);
+    end
+
+    return result;
+end
+
+--- 房间玩家接收到新的移动命令
+---@param player FSRoomPlayer
+---@return table
+function FSRoomBattle:ProcessMove(player, data)
+    local targetX = math.floor(data.targetX or 0);
+    local targetY = math.floor(data.targetY or 0);
+
+    -- 校验客户端想去的位置是否能走
+    if not self.map:IsWalkable(targetX, targetY) then
+        return {
+            success = false,
+            error = "Target position not walkable",
+            userId = player.userId,
+        };
+    end
+
+    -- 检查玩家当前位置距离目标位置有多远，简单的 假设每帧只能移动一个瓦片
+    local currentX, currentY = player:GetPosition();
+    currentX = math.floor(currentX);
+    currentY = math.floor(currentY);
+    local distance = self.map:GetManhattanDistance(currentX, currentY, targetX, targetY);
+
+    -- 如果当前位置到目标位置要走1个格子以上 则使用导航 走一个格子
+    if distance > 1 then
+        -- 查找路径 然后走一个格子
+        local path = self.map:FindPath(currentX, currentY, targetX, targetY);
+
+        -- 有路径可走
+        if path ~= nil and path[2] ~= nil then
+            targetX = path[2].x; -- 玩家需要朝着下一个格子走
+            targetY = path[2].y;
+        else
+            return {
+                success = false,
+                error = "Cannot find path",
+                userId = player.userId,
+            };
+        end
+    end
+
+    -- 在此简单处理 直接设置位置 其实应该将玩家的行走方向设置 和 目标位置设置
+    -- 让玩家自己走 在此直接设置目标位置 假设每帧移动一个瓦片
+    player:SetPosition(targetX, targetY);
+
+    return {
+        success = true,
+        userId = player.userId,
+        position = { x = targetX, y = targetY },
+    };
+end
+
+--- 房间玩家接收到新的技能命令 这只是简单处理的样例
+---@param player FSRoomPlayer
+---@return table
+function FSRoomBattle:ProcessSkill(player, data)
+    local skillId = data.skillId;
+    local targetX = math.floor(data.targetX or 0);
+    local targetY = math.floor(data.targetY or 0);
+    local targetUserId = data.targetUserId;
+
+    -- 查找技能
+    local FSRoomPlayerSkill = require("FSRoomPlayerSkillLogic");
+    local skill = FSRoomPlayerSkill.GetSkill(skillId);
+    if not skill then
+        return {
+            success = false,
+            error = "Invalid skill",
+            userId = player.userId
+        };
+    end
+
+    -- 检查玩家技能是否可以释放
+    local canCast = skill:CanCast(player, targetX, targetY);
+    if not canCast then
+        return {
+            success = false,
+            error = "技能暂时无法释放",
+            userId = player.userId
+        };
+    end
+
+    -- 查找目标玩家
+    ---@type table<integer,FSRoomPlayer>
+    local targets = {};
+    if targetUserId then
+        local target = self.room:GetRoomPlayer(targetUserId);
+        if target then
+            if target:IsAlive() then
+                table.insert(targets, target);
+            end
+        end
+    end
+
+    -- 查找技能范围内的所有玩家
+    if skill.aoeRadius > 0 then
+        for _, p in pairs(self.room.roomPlayers) do
+            -- 目标玩家活着且不是自己
+            if p:IsAlive() and p.userId ~= player.userId then
+                local px, py = p:GetPosition();
+                local distance = self.map:GetDistance(px, py, targetX, targetY);
+
+                if distance <= skill.aoeRadius then
+                    if not targetUserId or p.userId ~= targetUserId then
+                        table.insert(targets, p);
+                    end
+                end
+            end
+        end
+    end
+
+    -- 释放技能
+    local skillResults = skill:Cast(player, targets);
+
+    return {
+        success = true,
+        userId = player.userId,
+        skillId = skill.id,
+        skillName = skill.name,
+        results = skillResults
+    };
+end
+
+return FSRoomBattle;
