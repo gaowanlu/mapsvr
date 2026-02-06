@@ -78,6 +78,9 @@ function MapSvr.OnReload()
     table.insert(reloadList, "FSRoomPlayerLogic")
     table.insert(reloadList, "FSRoomPlayerSkillLogic")
     table.insert(reloadList, "FSRoomSyncLogic")
+    table.insert(reloadList, "FSRoomHexMapLogic")
+    table.insert(reloadList, "FSRoomIsometricMapLogic")
+    table.insert(reloadList, "FSRoomSquareMapLogic")
     table.insert(reloadList, "FSRoomMapFactoryLogic")
     table.insert(reloadList, "FSRoomMapLogic")
     table.insert(reloadList, "FSRoomBattleLogic")
@@ -109,6 +112,8 @@ function MapSvr.OnReload()
     MapMgr.OnReload();
     FSRoomMgr.OnReload();
     Map3DMgr.OnReload();
+
+    Log:Error("MapSvr.OnReload Done");
 end
 
 --- 当C++给Lua虚拟机传递新的Protobuf消息
