@@ -79,8 +79,11 @@ function MapSvr.OnReload()
     table.insert(reloadList, "FSRoomPlayerSkillLogic")
     table.insert(reloadList, "FSRoomSyncLogic")
     table.insert(reloadList, "FSRoomHexMapLogic")
+    table.insert(reloadList, "FSRoomHexMapAStarLogic")
     table.insert(reloadList, "FSRoomIsometricMapLogic")
+    table.insert(reloadList, "FSRoomIsometricMapAStarLogic")
     table.insert(reloadList, "FSRoomSquareMapLogic")
+    table.insert(reloadList, "FSRoomSquareMapAStarLogic")
     table.insert(reloadList, "FSRoomMapFactoryLogic")
     table.insert(reloadList, "FSRoomMapLogic")
     table.insert(reloadList, "FSRoomBattleLogic")
@@ -99,12 +102,16 @@ function MapSvr.OnReload()
         package.loaded[name] = nil;
     end
 
+    ---@type table<integer,string>
+    local reloadErrorList = {};
+
     for i, name in ipairs(reloadList) do
         local ok, module = pcall(require, name)
         if ok then
             Log:Error("%s.lua Reloaded", name);
         else
             Log:Error("%s.lua Reload Err %s", name, tostring(module))
+            table.insert(reloadErrorList, name);
         end
     end
 
@@ -112,6 +119,16 @@ function MapSvr.OnReload()
     MapMgr.OnReload();
     FSRoomMgr.OnReload();
     Map3DMgr.OnReload();
+
+    local reloadErrorListStr = "MapSvr.OnReload Error List:[";
+    for i, name in ipairs(reloadErrorList) do
+        reloadErrorListStr = reloadErrorListStr .. name;
+        if i ~= #reloadErrorList then
+            reloadErrorListStr = reloadErrorListStr .. ",";
+        end
+    end
+    reloadErrorListStr = reloadErrorListStr .. "]";
+    Log:Error("%s", reloadErrorListStr);
 
     Log:Error("MapSvr.OnReload Done");
 end

@@ -170,15 +170,21 @@ function Map3DOctree.OcQuery(node, range, out, seen)
 
     -- 遍历当前节点直接存储的对象
     for _, obj in ipairs(node.list) do
-        if obj.pos.x >= range.x and obj.pos.x < range.x + range.w and
-            obj.pos.y >= range.y and obj.pos.y < range.y + range.h and
-            obj.pos.z >= range.z and obj.pos.z < range.z + range.d then
-            -- 去重
-            if not seen[obj.userId] then
-                seen[obj.userId] = true;
-                table.insert(out, obj);
+        repeat
+            if not (obj.pos.x >= range.x and obj.pos.x < range.x + range.w and
+                    obj.pos.y >= range.y and obj.pos.y < range.y + range.h and
+                    obj.pos.z >= range.z and obj.pos.z < range.z + range.d) then
+                break;
             end
-        end
+
+            -- 去重
+            if seen[obj.userId] then
+                break;
+            end
+
+            seen[obj.userId] = true;
+            table.insert(out, obj);
+        until true;
     end
 
     -- 递归查询子节点

@@ -13,7 +13,7 @@ FSRoomMgr.lastCleanupTime = FSRoomMgr.lastCleanupTime or 0;
 ---@param roomId integer 房间号
 ---@return FSRoom|nil 房间
 function FSRoomMgr.CreateRoom(roomId)
-    if FSRoomMgr.rooms[roomId] then
+    if FSRoomMgr.rooms[roomId] == nil then
         Log:Error("Already exists Room roomId %d", roomId)
         return nil
     end
@@ -24,13 +24,13 @@ function FSRoomMgr.CreateRoom(roomId)
     return newRoom;
 end
 
----@param roomId number 房间号
+---@param roomId integer 房间号
 ---@return FSRoom 房间
 function FSRoomMgr.GetRoom(roomId)
     return FSRoomMgr.rooms[roomId]
 end
 
----@param roomId number 房间号
+---@param roomId integer 房间号
 ---@return boolean 删除是否成功
 function FSRoomMgr.DeleteRoom(roomId)
     ---@type FSRoom|nil
@@ -100,11 +100,21 @@ end
 function FSRoomMgr.CleanupFinishedRooms(currTimeS)
     local toDelete = {};
     for roomId, room in pairs(FSRoomMgr.rooms) do
-        if room.state == FSRoom.STATE_FINISHED and #room.roomPlayers == 0 then
-            if currTimeS - room.lastUpdateStateTime > 3 * 60 then
-                table.insert(toDelete, roomId);
+        repeat
+            if room.state ~= FSRoom.STATE_FINISHED then
+                break;
             end
-        end
+
+            if #room.roomPlayers ~= 0 then
+                break;
+            end
+
+            if currTimeS - room.lastUpdateStateTime <= 3 * 60 then
+                break;
+            end
+
+            table.insert(toDelete, roomId);
+        until true;
     end
 
     for _, roomId in ipairs(toDelete) do

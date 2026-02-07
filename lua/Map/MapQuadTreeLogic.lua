@@ -154,16 +154,20 @@ function MapQuadTree.QtQuery(qtNode, range, out, seen)
 
     -- 遍历当前节点直接存储的对象
     for _, obj in ipairs(qtNode.list) do
-        if obj.x >= range.x and
-            obj.x < range.x + range.w and
-            obj.y >= range.y and
-            obj.y < range.y + range.h then
+        repeat
+            if not (obj.x >= range.x and
+                    obj.x < range.x + range.w and
+                    obj.y >= range.y and
+                    obj.y < range.y + range.h) then
+                break;
+            end
+
             -- 去重
             if not seen[obj.userId] then
                 seen[obj.userId] = true
                 table.insert(out, obj)
             end
-        end
+        until true;
     end
 
     -- 递归查询子节点

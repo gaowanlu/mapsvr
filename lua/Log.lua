@@ -5,10 +5,13 @@ local Log = {};
 local unpack = table.unpack or unpack;
 
 function Log:Error(...)
-    local args = {...};
+    local args = { ... };
     local formatString = table.remove(args, 1);
 
     local info = debug.getinfo(2, "Sl");
+    if info == nil then
+        return;
+    end
     local source = info.source;
     local line = info.currentline;
 

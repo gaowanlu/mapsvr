@@ -229,32 +229,38 @@ function FSRoomMap:FindPath(startX, startY, endX, endY)
         for _, neighbor in ipairs(neighbors) do
             local nx, ny = neighbor.x, neighbor.y;
 
-            -- 只处理可行走的格子
-            if self:IsWalkable(nx, ny) then
+            repeat
+                if not self:IsWalkable(nx, ny) then
+                    break;
+                end
+
+                -- 只处理可行走的格子
                 local neighborKey = NodeKey(nx, ny);
 
                 -- 已处理的节点直接跳过
-                if not closedSet[neighborKey] then
-                    -- 从当前节点走到邻居的代价
-                    local tentativeGScore = gScore[currenyKey] + 1
-
-                    -- 如果是新节点 或找到更短路径
-                    if not gScore[neighborKey] or tentativeGScore < gScore[neighborKey] then
-                        -- 记录路径的来源
-                        cameFrom[neighborKey] = {
-                            x = current.x,
-                            y = current.y
-                        };
-
-                        -- 更新g/f分数
-                        gScore[neighborKey] = tentativeGScore
-                        fScore[neighborKey] = self:GetManhattanDistance(nx, ny, endX, endY) + tentativeGScore;
-
-                        -- 加入 openSet
-                        openSet[neighborKey] = { x = nx, y = ny }
-                    end
+                if closedSet[neighborKey] then
+                    break;
                 end
-            end
+
+                -- 从当前节点走到邻居的代价
+                local tentativeGScore = gScore[currenyKey] + 1
+
+                -- 如果是新节点 或找到更短路径
+                if not gScore[neighborKey] or tentativeGScore < gScore[neighborKey] then
+                    -- 记录路径的来源
+                    cameFrom[neighborKey] = {
+                        x = current.x,
+                        y = current.y
+                    };
+
+                    -- 更新g/f分数
+                    gScore[neighborKey] = tentativeGScore
+                    fScore[neighborKey] = self:GetManhattanDistance(nx, ny, endX, endY) + tentativeGScore;
+
+                    -- 加入 openSet
+                    openSet[neighborKey] = { x = nx, y = ny }
+                end
+            until true;
         end
     end
 

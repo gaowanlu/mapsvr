@@ -58,23 +58,33 @@ function FSRoomBattle:ProcessMove(player, data)
     currentY = math.floor(currentY);
     local distance = self.map:GetManhattanDistance(currentX, currentY, targetX, targetY);
 
-    -- 如果当前位置到目标位置要走1个格子以上 则使用导航 走一个格子
-    if distance > 1 then
-        -- 查找路径 然后走一个格子
-        local path = self.map:FindPath(currentX, currentY, targetX, targetY);
+    if distance <= 1 then
+        -- 在此简单处理 直接设置位置 其实应该将玩家的行走方向设置 和 目标位置设置
+        -- 让玩家自己走 在此直接设置目标位置 假设每帧移动一个瓦片
+        player:SetPosition(targetX, targetY);
 
-        -- 有路径可走
-        if path ~= nil and path[2] ~= nil then
-            targetX = path[2].x; -- 玩家需要朝着下一个格子走
-            targetY = path[2].y;
-        else
-            return {
-                success = false,
-                error = "Cannot find path",
-                userId = player.userId,
-            };
-        end
+        return {
+            success = true,
+            userId = player.userId,
+            position = { x = targetX, y = targetY },
+        };
     end
+
+    -- 如果当前位置到目标位置要走1个格子以上 则使用导航 走一个格子
+    -- 查找路径 然后走一个格子
+    local path = self.map:FindPath(currentX, currentY, targetX, targetY);
+
+    -- 无路径可走
+    if not path or not path[2] then
+        return {
+            success = false,
+            error = "Cannot find path",
+            userId = player.userId,
+        };
+    end
+
+    targetX = path[2].x; -- 玩家需要朝着下一个格子走
+    targetY = path[2].y;
 
     -- 在此简单处理 直接设置位置 其实应该将玩家的行走方向设置 和 目标位置设置
     -- 让玩家自己走 在此直接设置目标位置 假设每帧移动一个瓦片
