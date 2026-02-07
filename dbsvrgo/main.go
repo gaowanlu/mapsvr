@@ -7,17 +7,31 @@ import (
 	"dbsvrgo/worker"
 	"fmt"
 	"log"
+	"os"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	rpcAddr := "127.0.0.1:20026"
-	appId := "1.1.2.1"
+	// 生产环境不依靠.env文件
+	if os.Getenv("APP_ENV") != "production" {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatalf("加载 .env 失败: %v", err)
+		}
+	}
 
-	connStr := "host=127.0.0.1 port=5432 " +
-		"user=postgres " +
-		"password=root " +
-		"dbname=koyebdb " +
-		"sslmode=disable "
+	rpcAddr := os.Getenv("DBSVRGO_RPC_ADDR")
+	appId := os.Getenv("DBSVRGO_APPID")
+
+	connStr := ""
+
+	connStr += "host=" + os.Getenv("DBSVRGO_DB_HOST") + " "
+	connStr += "port=" + os.Getenv("DBSVRGO_DB_PORT") + " "
+	connStr += "user=" + os.Getenv("DBSVRGO_DB_USER") + " "
+	connStr += "password=" + os.Getenv("DBSVRGO_DB_PASSWORD") + " "
+	connStr += "dbname=" + os.Getenv("DBSVRGO_DB_DBNAME") + " "
+	connStr += "sslmode=" + os.Getenv("DBSVRGO_DB_SSLMODE") + " "
 
 	if err := db.Init(connStr); err != nil {
 		log.Fatal(err)

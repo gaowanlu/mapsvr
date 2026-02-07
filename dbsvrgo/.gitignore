@@ -1,2 +1,4 @@
-bin/
+bin/.env
+bin/dbsvrgo
 proto_res/
+!bin/.env.example
