@@ -34,7 +34,7 @@ end
 function FSRoomSquareMapAStarPriorityQueue:Push(pos, priority)
     local key = FSRoomSquareMapAStar_MakeNodeKey(pos);
 
-    -- 如果已存在与堆中，则更新优先级
+    -- 如果已存在于堆中，则更新优先级
     if self.positionMap[key] ~= nil then
         self:UpdatePriority(pos, priority);
         return;
@@ -60,6 +60,7 @@ function FSRoomSquareMapAStarPriorityQueue:UpdatePriority(pos, priority)
     end
 
     local oldPriority = self.heap[index].priority;
+    -- 设置新的优先级
     self.heap[index].priority = priority;
 
     -- 根据优先级变化决定向上还是向下调整
@@ -276,12 +277,16 @@ function FSRoomSquareMapAStar:ReconstructPath(cameFrom, current)
     local resultPath = { { x = current.x, y = current.y } };
     local currentKey = FSRoomSquareMapAStar_MakeNodeKey(current);
 
-    -- 从重点回溯到起点
+    -- 从终点回溯到起点
     while cameFrom[currentKey] ~= nil do
         current = cameFrom[currentKey];
         currentKey = FSRoomSquareMapAStar_MakeNodeKey(current);
-        -- 插入到路径开头
-        table.insert(resultPath, 1, { x = current.x, y = current.y });
+        table.insert(resultPath, { x = current.x, y = current.y });
+    end
+
+    -- 返回反转的resultPath
+    for i = 1, math.floor(#resultPath / 2) do
+        resultPath[i], resultPath[#resultPath - i + 1] = resultPath[#resultPath - i + 1], resultPath[i]
     end
 
     return resultPath;
