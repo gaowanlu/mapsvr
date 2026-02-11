@@ -16,10 +16,10 @@
 local FSRoomPlayerSkill = require("FSRoomPlayerSkillData");
 
 -- Skill types
-FSRoomPlayerSkill.TYPE_DAMAGE = "damage";
-FSRoomPlayerSkill.TYPE_HEAL = "heal";
-FSRoomPlayerSkill.TYPE_BUFF = "buff";
-FSRoomPlayerSkill.TYPE_DEBUFF = "debuff";
+FSRoomPlayerSkill.TYPE_DAMAGE = "1";
+FSRoomPlayerSkill.TYPE_HEAL = "2";
+FSRoomPlayerSkill.TYPE_BUFF = "3";
+FSRoomPlayerSkill.TYPE_DEBUFF = "4";
 
 ---@class FSRoomPlayerSkillConfig
 ---@field costMP number MP消耗

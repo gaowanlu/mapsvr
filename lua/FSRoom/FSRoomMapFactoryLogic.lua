@@ -7,13 +7,13 @@
 ---@field ISO_4DIR integer 等距菱形瓦片4方向
 ---@field ISO_8DIR integer 等距菱形瓦片8方向
 
---- 地图基类
----@class FSRoomMapBase
----@field mapType integer FSRoomMapType对应类型
-
 ---@class FSRoomMapFactory
 ---@field MapTypes FSRoomMapType
 local FSRoomMapFactory = require("FSRoomMapFactoryData");
+
+local FSRoomSquareMap = require("FSRoomSquareMapLogic");
+local FSRoomHexMap = require("FSRoomHexMapLogic");
+local FSRoomIsometricMap = require("FSRoomIsometricMapLogic");
 
 FSRoomMapFactory.MapTypes = {
     SQUARE      = 1,
@@ -28,23 +28,18 @@ FSRoomMapFactory.MapTypes = {
 ---@param mapType integer
 ---@param width integer
 ---@param height integer
----@return FSRoomMapBase|nil,string
+---@return FSRoomSquareMap|FSRoomHexMap|FSRoomIsometricMap|nil,string
 function FSRoomMapFactory.CreateMap(mapType, width, height)
-    ---@type FSRoomMapBase
-    local roomMapBase = {
-        mapType = mapType
-    };
-
     if mapType == FSRoomMapFactory.MapTypes.SQUARE or mapType == FSRoomMapFactory.MapTypes.SQUARE_4DIR then
-        return roomMapBase, "";
+        return FSRoomSquareMap.new(width, height, false), "";
     elseif mapType == FSRoomMapFactory.MapTypes.SQUARE_8DIR then
-        return roomMapBase, "";
+        return FSRoomSquareMap.new(width, height, true), "";
     elseif mapType == FSRoomMapFactory.MapTypes.HEX then
-        return roomMapBase, "";
+        return FSRoomHexMap.new(width, height), "";
     elseif mapType == FSRoomMapFactory.MapTypes.ISO or mapType == FSRoomMapFactory.MapTypes.ISO_8DIR then
-        return roomMapBase, "";
+        return FSRoomIsometricMap.new(width, height, true), "";
     elseif mapType == FSRoomMapFactory.MapTypes.ISO_4DIR then
-        return roomMapBase, "";
+        return FSRoomIsometricMap.new(width, height, false), "";
     end
 
     return nil, "未知地图类型";
@@ -118,6 +113,28 @@ if not ... then
         print("  移动: " .. info.movement)
     end
     print("\n====================================\n")
+
+    local squareMap4Dir, _ = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.SQUARE_4DIR, 20, 20);
+    local squareMap8Dir, _ = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.SQUARE_8DIR, 20, 20);
+    local hexMap, _ = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.HEX, 20, 20);
+    local isometric4Dir, _ = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.ISO_4DIR, 20, 20);
+    local isometric8Dir, _ = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.ISO_8DIR, 20, 20);
+
+    if squareMap4Dir ~= nil then
+        squareMap4Dir:Print();
+    end
+    if squareMap8Dir ~= nil then
+        squareMap8Dir:Print();
+    end
+    if hexMap ~= nil then
+        hexMap:Print();
+    end
+    if isometric4Dir ~= nil then
+        isometric4Dir:Print();
+    end
+    if isometric8Dir ~= nil then
+        isometric8Dir:Print();
+    end
 end
 
 return FSRoomMapFactory;

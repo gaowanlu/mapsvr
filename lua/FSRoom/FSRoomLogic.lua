@@ -10,14 +10,14 @@
 ---@field state string
 ---@field lastUpdateStateTime integer
 ---@field maxPlayers integer
----@field map FSRoomMap
+---@field map FSRoomSquareMap
 ---@field battle FSRoomBattle
 ---@field sync FSRoomSync
 ---@field FSRoomDbData FSRoomDbDataType
 ---@field roomPlayers table<string,FSRoomPlayer>
 local FSRoom = require("FSRoomData")
 local Log = require("Log")
-local FSRoomMap = require("FSRoomMapLogic");
+local FSRoomMapFactory = require("FSRoomMapFactoryLogic");
 local FSRoomBattle = require("FSRoomBattleLogic");
 local FSRoomSync = require("FSRoomSyncLogic");
 local FSRoomPlayer = require("FSRoomPlayerLogic");
@@ -51,9 +51,7 @@ function FSRoom.new(roomId, maxPlayers)
     self.maxPlayers = maxPlayers;
 
     -- 初始化房间地图
-    self.map = FSRoomMap.new(100, 100);
-    self.map:GenerateBorderWalls();
-    self.map:GenerateRandomObstacles(10);
+    self.map = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.ISO_4DIR, 20, 20);
 
     -- 初始化Battle
     self.battle = FSRoomBattle.new(self, self.map);

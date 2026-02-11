@@ -2,7 +2,6 @@ package mapper
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"dbsvrgo/logger"
 	p "dbsvrgo/proto_res"
 )
 
@@ -21,7 +21,7 @@ func camelToSnakeCase(str string) string {
 	str = re.ReplaceAllString(str, "${1}_${2}")
 	// 转换为全小写
 	res := strings.ToLower(str)
-	log.Println("func camelToSnakeCase ", str, " ", res)
+	logger.Log.Println("func camelToSnakeCase ", str, " ", res)
 	return res
 }
 

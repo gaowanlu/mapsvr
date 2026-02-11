@@ -64,7 +64,6 @@ end
 function MapSvr.OnReload()
     -- hot load PlayerLogic scriptss
     local reloadList = {}
-    table.insert(reloadList, "DebugLogic")
     table.insert(reloadList, "PlayerLogic")
     table.insert(reloadList, "PlayerMgrLogic")
     table.insert(reloadList, "PlayerCmptBaseLogic")
@@ -85,7 +84,6 @@ function MapSvr.OnReload()
     table.insert(reloadList, "FSRoomSquareMapLogic")
     table.insert(reloadList, "FSRoomSquareMapAStarLogic")
     table.insert(reloadList, "FSRoomMapFactoryLogic")
-    table.insert(reloadList, "FSRoomMapLogic")
     table.insert(reloadList, "FSRoomBattleLogic")
     table.insert(reloadList, "FSRoomLogic")
     table.insert(reloadList, "FSRoomMgrLogic")

@@ -1,11 +1,13 @@
 ---@class FSRoomBattle
 ---@field room FSRoom
----@field map FSRoomMap
+---@field map FSRoomSquareMap
 local FSRoomBattle = require("FSRoomBattleData");
+
+local FSRoomSquareMapAStar = require("FSRoomSquareMapAStarLogic");
 
 --- 创建新的FSRoomBattle对象
 ---@param room FSRoom
----@param map FSRoomMap
+---@param map FSRoomSquareMap
 ---@return FSRoomBattle
 function FSRoomBattle.new(room, map)
     ---@type FSRoomBattle
@@ -56,7 +58,7 @@ function FSRoomBattle:ProcessMove(player, data)
     local currentX, currentY = player:GetPosition();
     currentX = math.floor(currentX);
     currentY = math.floor(currentY);
-    local distance = self.map:GetManhattanDistance(currentX, currentY, targetX, targetY);
+    local distance = self.map:Distance(currentX, currentY, targetX, targetY);
 
     if distance <= 1 then
         -- 在此简单处理 直接设置位置 其实应该将玩家的行走方向设置 和 目标位置设置
@@ -72,7 +74,8 @@ function FSRoomBattle:ProcessMove(player, data)
 
     -- 如果当前位置到目标位置要走1个格子以上 则使用导航 走一个格子
     -- 查找路径 然后走一个格子
-    local path = self.map:FindPath(currentX, currentY, targetX, targetY);
+    local squareMapAStar = FSRoomSquareMapAStar.new();
+    local path = squareMapAStar:FindPath(self.map, currentX, currentY, targetX, targetY);
 
     -- 无路径可走
     if not path or not path[2] then
@@ -145,7 +148,7 @@ function FSRoomBattle:ProcessSkill(player, data)
             -- 目标玩家活着且不是自己
             if p:IsAlive() and p.userId ~= player.userId then
                 local px, py = p:GetPosition();
-                local distance = self.map:GetDistance(px, py, targetX, targetY);
+                local distance = self.map:Distance(px, py, targetX, targetY);
 
                 if distance <= skill.aoeRadius then
                     if not targetUserId or p.userId ~= targetUserId then

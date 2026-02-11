@@ -2,7 +2,6 @@ package worker
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 
 	"google.golang.org/protobuf/encoding/prototext"
@@ -11,6 +10,7 @@ import (
 
 	"dbsvrgo/client"
 	"dbsvrgo/db"
+	"dbsvrgo/logger"
 	"dbsvrgo/mapper"
 	"dbsvrgo/proto_res"
 )
@@ -43,7 +43,7 @@ func (w *Worker) Start() {
 
 			handler, ok := w.handlers[pkg.Cmd]
 			if !ok {
-				log.Println("未知的指令 CMD =", pkg.Cmd)
+				logger.Log.Println("未知的指令 CMD =", pkg.Cmd)
 				continue
 			}
 
@@ -54,29 +54,29 @@ func (w *Worker) Start() {
 
 func (w *Worker) ExecWriteOper(msg proto.Message) error {
 	sqlStr, args, err := mapper.BuildSQL(msg)
-	log.Println("ExecWriteOper SQL => ", sqlStr)
+	logger.Log.Println("ExecWriteOper SQL => ", sqlStr)
 	if err != nil {
-		log.Println("build sql error:", err)
+		logger.Log.Println("build sql error:", err)
 		return err
 	}
 
 	result, err := db.DB.Exec(sqlStr, args...)
 	if err != nil {
-		log.Println("exec error:", err, sqlStr)
+		logger.Log.Println("exec error:", err, sqlStr)
 		return err
 	}
 
 	// 受影响的行数
 	rows, err := result.RowsAffected()
 	if err != nil {
-		log.Println("RowsAffected error:", err)
+		logger.Log.Println("RowsAffected error:", err)
 	} else {
-		log.Println("Rows affected:", rows)
+		logger.Log.Println("Rows affected:", rows)
 	}
 
 	// 如果是 INSERT，可获取自增 ID
 	if id, err := result.LastInsertId(); err == nil {
-		log.Println("Last insert id:", id)
+		logger.Log.Println("Last insert id:", id)
 	}
 
 	return nil
@@ -235,16 +235,16 @@ func setScalar(pm protoreflect.Message, fd protoreflect.FieldDescriptor, v any) 
 func (w *Worker) handleHandshake(pkg *proto_res.ProtoPackage) {
 	var msg proto_res.ProtoIPCStreamAuthHandshake
 	if err := proto.Unmarshal(pkg.Protocol, &msg); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
-	log.Println("RPC握手成功 AppId:", string(msg.AppId))
+	logger.Log.Println("RPC握手成功 AppId:", string(msg.AppId))
 }
 
 func (w *Worker) handleExampleRes(pkg *proto_res.ProtoPackage) {
 	var msg proto_res.ProtoCSResExample
 	if err := proto.Unmarshal(pkg.Protocol, &msg); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
 
@@ -253,7 +253,7 @@ func (w *Worker) handleExampleRes(pkg *proto_res.ProtoPackage) {
 		appId = w.client.GetAppId()
 	}
 
-	log.Printf(
+	logger.Log.Printf(
 		"RPC发来消息 AppId %s: ProtoCmd_PROTO_CMD_CS_RES_EXAMPLE %s",
 		appId,
 		string(msg.TestContext),
@@ -263,26 +263,26 @@ func (w *Worker) handleExampleRes(pkg *proto_res.ProtoPackage) {
 func (w *Worker) handleWriteUserRecord(pkg *proto_res.ProtoPackage) {
 	var msg proto_res.DbUserRecord
 	if err := proto.Unmarshal(pkg.Protocol, &msg); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
 
-	log.Println(prototext.Format(&msg))
+	logger.Log.Println(prototext.Format(&msg))
 	w.ExecWriteOper(&msg)
 }
 
 func (w *Worker) handleSelectUserRecord(pkg *proto_res.ProtoPackage) {
 	var msg proto_res.SelectDbUserRecordReq
 	if err := proto.Unmarshal(pkg.Protocol, &msg); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
 
-	log.Println(prototext.Format(&msg))
+	logger.Log.Println(prototext.Format(&msg))
 
 	res, err := w.SelectRaw(&proto_res.DbUserRecord{}, msg.Where)
 	if err != nil {
-		log.Println("select error:", err)
+		logger.Log.Println("select error:", err)
 		return
 	}
 
@@ -291,14 +291,14 @@ func (w *Worker) handleSelectUserRecord(pkg *proto_res.ProtoPackage) {
 		resMsg.UserRecordList = append(resMsg.UserRecordList, m.(*proto_res.DbUserRecord))
 	}
 
-	log.Println(prototext.Format(resMsg))
+	logger.Log.Println(prototext.Format(resMsg))
 	w.client.Send(proto_res.ProtoCmd_PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES, resMsg)
 }
 
 func (w *Worker) handleInsertDbUserRecordReq(pkg *proto_res.ProtoPackage) {
 	var msg proto_res.InsertDbUserRecordReq
 	if err := proto.Unmarshal(pkg.Protocol, &msg); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
 
@@ -316,12 +316,12 @@ func (w *Worker) handleInsertDbUserRecordReq(pkg *proto_res.ProtoPackage) {
 	} else {
 		res, err := w.SelectRaw(&proto_res.DbUserRecord{}, "id=$1 limit 1", msg.DbUserRecord.Id)
 		if err != nil {
-			log.Println("select error:", err)
+			logger.Log.Println("select error:", err)
 			msgRes.Ret = -1
 		} else {
 			if len(res) > 0 {
 				msgRes.DbUserRecord = res[0].(*proto_res.DbUserRecord)
-				log.Println(prototext.Format(msgRes.DbUserRecord))
+				logger.Log.Println(prototext.Format(msgRes.DbUserRecord))
 			} else {
 				msgRes.Ret = -1
 			}
@@ -331,13 +331,13 @@ func (w *Worker) handleInsertDbUserRecordReq(pkg *proto_res.ProtoPackage) {
 
 	w.client.Send(proto_res.ProtoCmd_PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_RES, &msgRes)
 
-	log.Println(prototext.Format(&msgRes))
+	logger.Log.Println(prototext.Format(&msgRes))
 }
 
 func (w *Worker) handleSelectDbUserRecordLoginReq(pkg *proto_res.ProtoPackage) {
 	var req proto_res.SelectDbUserRecordLoginReq
 	if err := proto.Unmarshal(pkg.Protocol, &req); err != nil {
-		log.Println("解析失败:", err)
+		logger.Log.Println("解析失败:", err)
 		return
 	}
 
@@ -351,12 +351,12 @@ func (w *Worker) handleSelectDbUserRecordLoginReq(pkg *proto_res.ProtoPackage) {
 
 	selectRes, err := w.SelectRaw(&proto_res.DbUserRecord{}, "user_id=$1 limit 1", req.UserId)
 	if err != nil {
-		log.Println("select error:", err)
+		logger.Log.Println("select error:", err)
 		res.Ret = -1
 	} else {
 		if len(selectRes) > 0 {
 			res.UserRecord = selectRes[0].(*proto_res.DbUserRecord)
-			log.Println(prototext.Format(res.UserRecord))
+			logger.Log.Println(prototext.Format(res.UserRecord))
 		} else {
 			res.Ret = -1
 		}

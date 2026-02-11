@@ -3,21 +3,22 @@ package main
 import (
 	"dbsvrgo/client"
 	"dbsvrgo/db"
+	"dbsvrgo/logger"
 	"dbsvrgo/proto_res"
 	"dbsvrgo/worker"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/sevlyar/go-daemon"
 )
 
-func main() {
+func ServerStart() {
 	// 生产环境不依靠.env文件
 	if os.Getenv("APP_ENV") != "production" {
 		err := godotenv.Load()
 		if err != nil {
-			log.Fatalf("加载 .env 失败: %v", err)
+			logger.Log.Fatalf("加载 .env 失败: %v", err)
 		}
 	}
 
@@ -34,7 +35,7 @@ func main() {
 	connStr += "sslmode=" + os.Getenv("DBSVRGO_DB_SSLMODE") + " "
 
 	if err := db.Init(connStr); err != nil {
-		log.Fatal(err)
+		logger.Log.Fatal(err)
 	} else {
 		fmt.Println("连接DB成功")
 	}
@@ -55,18 +56,39 @@ func main() {
 		},
 
 		func(client *client.Client, pkg *proto_res.ProtoPackage) error {
-			log.Println("RPC 收到包 CMD =", pkg.Cmd)
+			logger.Log.Println("RPC 收到包 CMD =", pkg.Cmd)
 
 			w.Push(pkg)
 
-			log.Println("移交给Worker处理")
+			logger.Log.Println("移交给Worker处理")
 
 			return nil
 		})
 
 	if err != nil {
-		log.Fatalln("创建RPC client.Client 失败：", err)
+		logger.Log.Fatalln("创建RPC client.Client 失败：", err)
 	}
 
 	select {}
+}
+
+func main() {
+	cntxt := &daemon.Context{
+		PidFileName: "./dbsvrgo.pid",
+		PidFilePerm: 0644,
+	}
+
+	// 创建并启动守护进程
+	d, err := cntxt.Reborn()
+	if err != nil {
+		fmt.Println("Error starting daemon:", err)
+		return
+	}
+	if d != nil {
+		return
+	}
+	defer cntxt.Release()
+
+	// 守护进程的主要任务
+	ServerStart()
 }
