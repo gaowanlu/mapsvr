@@ -88,7 +88,7 @@ end
 ---@return FSRoom|nil
 function FSRoomMgr.FindAvailableRoom()
     for _, room in pairs(FSRoomMgr.rooms) do
-        if room.state == FSRoom.STATE_WAITING and #room.roomPlayers < room.maxPlayers then
+        if room.state == FSRoom.STATE_WAITING and room:GetRoomPlayersCnt() < room.maxPlayers then
             return room;
         end
     end
@@ -105,7 +105,7 @@ function FSRoomMgr.CleanupFinishedRooms(currTimeS)
                 break;
             end
 
-            if #room.roomPlayers ~= 0 then
+            if room:GetRoomPlayersCnt() ~= 0 then
                 break;
             end
 

@@ -15,6 +15,7 @@
 ---@field sync FSRoomSync
 ---@field FSRoomDbData FSRoomDbDataType
 ---@field roomPlayers table<string,FSRoomPlayer>
+---@field roomPlayersCnt integer
 local FSRoom = require("FSRoomData")
 local Log = require("Log")
 local FSRoomMapFactory = require("FSRoomMapFactoryLogic");
@@ -45,6 +46,7 @@ function FSRoom.new(roomId, maxPlayers)
     };
 
     self.roomPlayers = {};
+    self.roomPlayersCnt = 0;
 
     self.state = FSRoom.STATE_WAITING;
     self.lastUpdateStateTime = 0;
@@ -66,7 +68,7 @@ end
 ---@return bool,string
 function FSRoom:AddPlayerToRoom(playerId, userId)
     -- 房间人满了
-    if #self.roomPlayers >= self.maxPlayers then
+    if self.roomPlayersCnt >= self.maxPlayers then
         return false, "Room is full"
     end
 
@@ -82,6 +84,7 @@ function FSRoom:AddPlayerToRoom(playerId, userId)
 
     -- 创建一个RoomPlayer
     self.roomPlayers[userId] = FSRoomPlayer.new(playerId, userId, self);
+    self.roomPlayersCnt = self.roomPlayersCnt + 1;
 
     local newRoomPlayer = self.roomPlayers[userId];
     -- 设置出生位置
@@ -130,6 +133,7 @@ function FSRoom:RemovePlayerFromRoom(playerId, userId)
 
     -- 直接移除
     self.roomPlayers[userId] = nil;
+    self.roomPlayersCnt = self.roomPlayersCnt - 1;
 
     Log:Error("roomPlayer userId %s left room %s", userId, tostring(self.FSRoomDbData.id));
 
@@ -138,7 +142,7 @@ function FSRoom:RemovePlayerFromRoom(playerId, userId)
 
     -- 没有足够玩家则终止比赛
     -- 如果房间是空的 或 房间在运行中且没有足够玩家 结束游戏
-    if #self.roomPlayers == 0 then
+    if self.roomPlayersCnt == 0 then
         self:FinishGame(nil, "all players left");
     elseif self.state == FSRoom.STATE_RUNNING then
         local gameEnd, winnerUserId = self.battle:CheckGameEnd();
@@ -178,7 +182,7 @@ end
 ---@return boolean 房间内所有玩家是否都已经ready
 function FSRoom:AllPlayersReady()
     -- 小于两人不能玩
-    if #self.roomPlayers < 2 then
+    if self.roomPlayersCnt < 2 then
         return false;
     end
 
@@ -202,7 +206,7 @@ function FSRoom:StartGame()
     self.state = FSRoom.STATE_RUNNING;
     self.sync:Start();
 
-    Log:Error("Game started in room %s with %d players", tostring(self.FSRoomDbData.id), #self.roomPlayers);
+    Log:Error("Game started in room %s with %d players", tostring(self.FSRoomDbData.id), self.roomPlayersCnt);
 
     -- local initialState = {
     --     -- players = { 游戏的初始玩家信息 },
@@ -361,6 +365,12 @@ end
 ---被FSRoomMgr删除前调用 房间对象被销毁之前 房间状态早已经变为STATE_FINISHED
 function FSRoom:DeleteBefore()
     Log:Error("FSRoom %s DeleteBefore()", tostring(self.FSRoomDbData.id));
+end
+
+--- 获取目前房间内玩家个数
+---@return integer
+function FSRoom:GetRoomPlayersCnt()
+    return self.roomPlayersCnt;
 end
 
 return FSRoom;

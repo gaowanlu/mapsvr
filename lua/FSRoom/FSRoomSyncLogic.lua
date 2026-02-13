@@ -153,18 +153,6 @@ function FSRoomSync:GetFramesSince(frameId)
     return missedFrames;
 end
 
---- 只保留keeepCount帧超过了则删除最老的
----@param keepCount integer
-function FSRoomSync:ClearOldFrames(keepCount)
-    keepCount = keepCount or 1000
-    if #self.frameHistory > keepCount then
-        local removeCount = #self.frameHistory - keepCount;
-        for i = 1, removeCount do
-            table.remove(self.frameHistory, 1);
-        end
-    end
-end
-
 ---@class FSRoomSyncStatisticsType
 ---@field currentFrame integer 当前帧号
 ---@field totalFrames integer history中存了多少帧
