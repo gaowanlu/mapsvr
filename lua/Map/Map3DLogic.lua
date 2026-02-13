@@ -64,6 +64,10 @@ function Map3D:OnTick()
     -- Log:Error("S %s", tostring(TimeMgr.GetS()));
     -- Log:Error("NS %s", tostring(TimeMgr.GetNS()));
 
+    if self.MapDbData.lastTickTimeMS <= 0 then
+        self.MapDbData.lastTickTimeMS = timeMS;
+    end
+
     local frameTime = timeMS - self.MapDbData.lastTickTimeMS;
     if frameTime > 250 then
         frameTime = 250 -- 防止卡顿时爆炸

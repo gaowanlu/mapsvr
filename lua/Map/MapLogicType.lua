@@ -11,7 +11,7 @@
 ---@field speedRatio number 速度放大比例
 ---@field accel number 加速度 px/ms^2
 ---@field bodyRadius number 角色碰撞半径
----@field bodyMass number 角色的碰撞半径
+---@field bodyMass number 质量
 ---@field friction number 每帧速度衰减系数
 ---@field bounce number 角色撞到障碍物时的反弹系数
 ---@field lastSeq number 最后收到并应用的客户端输入seq

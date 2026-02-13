@@ -13,7 +13,7 @@ FSRoomMgr.lastCleanupTime = FSRoomMgr.lastCleanupTime or 0;
 ---@param roomId integer 房间号
 ---@return FSRoom|nil 房间
 function FSRoomMgr.CreateRoom(roomId)
-    if FSRoomMgr.rooms[roomId] == nil then
+    if FSRoomMgr.rooms[roomId] ~= nil then
         Log:Error("Already exists Room roomId %d", roomId)
         return nil
     end
@@ -46,7 +46,7 @@ function FSRoomMgr.DeleteRoom(roomId)
 end
 
 function FSRoomMgr.OnTick()
-    local currTimeS = TimeMgr:GetS();
+    local currTimeS = TimeMgr.GetS();
 
     for roomId, roomItem in pairs(FSRoomMgr.rooms) do
         ---@type FSRoom
