@@ -9,7 +9,7 @@ local MsgHandler = require("MsgHandlerData");
 ---@param cmd number 协议号
 ---@param message table protobufMessage
 function MsgHandler:Send2Client(clientGID, workerIdx, cmd, message)
-    avant.Lua2Protobuf(message, 1, cmd, clientGID, workerIdx, "");
+    avant.Lua2Protobuf(message, ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_CLIENT, cmd, clientGID, workerIdx, "");
 end
 
 --- 发送协议到其他进程
@@ -17,7 +17,7 @@ end
 ---@param cmd number 协议号
 ---@param message table protobufMessage
 function MsgHandler:Send2IPC(appId, cmd, message)
-    avant.Lua2Protobuf(message, 2, cmd, 0, -1, appId);
+    avant.Lua2Protobuf(message, ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_IPC, cmd, 0, -1, appId);
 end
 
 --- 发送UDP数据
@@ -26,7 +26,7 @@ end
 ---@param cmd number 协议号
 ---@param message table protobufMessage
 function MsgHandler:Send2UDP(ip, port, cmd, message)
-    avant.Lua2Protobuf(message, 3, cmd, 0, port, ip);
+    avant.Lua2Protobuf(message, ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_UDP, cmd, 0, port, ip);
 end
 
 --- MsgHandler被重载后调用

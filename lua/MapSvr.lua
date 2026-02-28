@@ -146,7 +146,7 @@ function MapSvr.OnLuaVMRecvMessage(msg_type,
                                    int64_param2_string,
                                    str_param3)
     -- Log:Error("OnLuaVMRecvMessage cmd[%d] uint64_param1_string[%s] int64_param2_string[%s] str_param3[%s]", cmd, uint64_param1_string, int64_param2_string, str_param3)
-    if msg_type == 1 then -- 客户端
+    if msg_type == ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_CLIENT then -- 客户端
         local clientGID = uint64_param1_string
         local workerIdx = tonumber(int64_param2_string)
         if workerIdx == nil then
@@ -154,9 +154,9 @@ function MapSvr.OnLuaVMRecvMessage(msg_type,
             return;
         end
         MsgHandler:HandlerMsgFromClient(clientGID, workerIdx, cmd, message);
-    elseif msg_type == 2 then -- ipc
+    elseif msg_type == ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_IPC then -- ipc
         MsgHandler:HandlerMsgFromOther(cmd, message, str_param3);
-    elseif msg_type == 3 then -- udp
+    elseif msg_type == ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_UDP then -- udp
         MsgHandler:HandlerMsgFromUDP(cmd, message, str_param3, int64_param2_string);
     else
         Log:Error("OnLuaVMRecvMessage Unknown msg_type %d", msg_type)

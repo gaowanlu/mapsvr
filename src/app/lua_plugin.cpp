@@ -703,8 +703,8 @@ int lua_plugin::HighresTime(lua_State *lua_state)
     auto seconds = ns / 1000000000;
     auto nanoseconds_part = ns % 1000000000;
     auto milliseconds = ns / 1000000;
-    lua_pushnumber(lua_state, seconds); // push seconds
-    lua_pushnumber(lua_state, milliseconds); // push milliseconds
+    lua_pushnumber(lua_state, seconds);          // push seconds
+    lua_pushnumber(lua_state, milliseconds);     // push milliseconds
     lua_pushnumber(lua_state, nanoseconds_part); // pushes nanoseconds_part
     return 3;
 }
@@ -813,7 +813,7 @@ int lua_plugin::Lua2Protobuf(lua_State *lua_state)
                                msg_ptr->DebugString().c_str());
 
         // 在这里处理lua发来的包
-        if (msg_type == 1) // 发给客户端连接的包
+        if (msg_type == (int)ProtoLuaVMMsgType::PROTO_LUA_VM_MSG_TYPE_CLIENT) // 发给客户端连接的包
         {
             ProtoTunnelOtherLuaVM2WorkerConn tunnelOtherVM2WorkerConn;
             tunnelOtherVM2WorkerConn.set_gid(uint64_param1);
@@ -825,11 +825,11 @@ int lua_plugin::Lua2Protobuf(lua_State *lua_state)
                 std::vector{avant::global::tunnel_id::get().get_worker_tunnel_id(int64_param2)},
                 avant::proto::pack_package(resPackage, tunnelOtherVM2WorkerConn, ProtoCmd::PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN));
         }
-        else if (msg_type == 2) // ipc
+        else if (msg_type == (int)ProtoLuaVMMsgType::PROTO_LUA_VM_MSG_TYPE_IPC) // ipc
         {
             avant::app::other_app::other_lua_send_ipc_package(str_param3, cmd, *msg_ptr);
         }
-        else if (msg_type == 3)
+        else if (msg_type == (int)ProtoLuaVMMsgType::PROTO_LUA_VM_MSG_TYPE_UDP) // udp
         {
             // udp
             // LOG_ERROR("Lua2Protobuf UDP send cmd {} to {}:{}", cmd, str_param3.c_str(), int64_param2);
