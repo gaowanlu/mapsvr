@@ -302,12 +302,14 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_CREATE_USER] = function(
     end
 
     local ret = ProtoLua_ProtoErrCode.OK;
+
     if #message.userId <= 0 or #message.userId > 64 then
         ret = ProtoLua_ProtoErrCode.EERR_USERID_INPUT_INVALID;
     end
     if #message.password <= 0 or #message.password > 64 then
         ret = ProtoLua_ProtoErrCode.ERR_PASSWORD_INPUT_INVALID;
     end
+
     if ret ~= ProtoLua_ProtoErrCode.OK then
         ---@type ProtoLua_ProtoCSResCreateUser
         local res = avant.CreateNewProtobufByCmd(ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_CREATE_USER);

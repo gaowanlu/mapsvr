@@ -8,7 +8,7 @@ MsgHandlerFromUDP = {};
 MsgHandlerFromUDP[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_EXAMPLE] = function(cmd, message, ip, port)
     ---@type ProtoLua_ProtoCSResExample
     local t = {
-        testContext = message["testContext"]
+        testContext = message.testContext
     };
 
     MsgHandler:Send2UDP(ip, port, ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_EXAMPLE, t);
