@@ -1,5 +1,5 @@
 ---@class FSRoomIsometricMapAStar
-FSRoomIsometricMapAStar = require("FSRoomIsometricMapAStarData");
+local FSRoomIsometricMapAStar = require("FSRoomIsometricMapAStarData");
 
 ---@class FSRoomIsometricMapAStarPriorityQueueNode
 ---@field pos FSRoomIsometricMapTilePos

@@ -121,6 +121,10 @@ The `src/app/lua_plugin.cpp` file in `avant_dir` handles Protobuf <-> Lua table 
 | `avant_dir/` | Upstream Avant framework (git submodule) |
 | `log/` | Runtime log output |
 
+## Git Repository Notes
+
+**Do not commit changes to the `avant_dir/` subdirectory.** This directory contains an upstream git submodule (the Avant framework) that should not be modified in this repository. Any local changes made to `avant_dir/` are intended to be temporary for testing purposes and should never be committed.
+
 ## Lua VM Lifecycle
 
 | VM | Entry Point | Hot-Reload Trigger |

@@ -1,5 +1,6 @@
 local ConfigTableMgr = require("ConfigTableMgrData");
 
+---@diagnostic disable-next-line: inject-field
 ConfigTableMgr.Map2DConfig = {
     mapIdList = {
         1,
@@ -19,6 +20,7 @@ function ConfigTableMgr.Map2DConfig:GetMapIdAt(iIdx)
     return self.mapIdList[iIdx];
 end
 
+---@diagnostic disable-next-line: inject-field
 ConfigTableMgr.Map3DConfig = {
     mapIdList = {
         4,
@@ -38,6 +40,7 @@ function ConfigTableMgr.Map3DConfig:GetMap3DIdAt(iIdx)
     return self.mapIdList[iIdx];
 end
 
+---@diagnostic disable-next-line: inject-field
 ConfigTableMgr.FSRoomConfig = {
     roomIdList = {
         6,

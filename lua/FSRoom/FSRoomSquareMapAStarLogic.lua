@@ -1,5 +1,5 @@
 ---@class FSRoomSquareMapAStar
-FSRoomSquareMapAStar = require("FSRoomSquareMapAStarData");
+local FSRoomSquareMapAStar = require("FSRoomSquareMapAStarData");
 
 ---@class FSRoomSquareMapAStarPriorityQueueNode
 ---@field pos FSRoomSquareMapTilePos

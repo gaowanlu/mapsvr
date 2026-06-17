@@ -1,5 +1,5 @@
 ---@class FSRoomHexMapAStar
-FSRoomHexMapAStar = require("FSRoomHexMapAStarData");
+local FSRoomHexMapAStar = require("FSRoomHexMapAStarData");
 
 ---@class FSRoomHexMapAStarPriorityQueueNode
 ---@field pos FSRoomHexMapTilePos

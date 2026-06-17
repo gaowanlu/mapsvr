@@ -53,7 +53,8 @@ function FSRoom.new(roomId, maxPlayers)
     self.maxPlayers = maxPlayers;
 
     -- 初始化房间地图
-    self.map = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.ISO_4DIR, 20, 20);
+    ---@type FSRoomSquareMap
+    self.map = FSRoomMapFactory.CreateMap(FSRoomMapFactory.MapTypes.SQUARE_8DIR, 20, 20);
 
     -- 初始化Battle
     self.battle = FSRoomBattle.new(self, self.map);

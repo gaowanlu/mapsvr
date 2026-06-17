@@ -4,7 +4,9 @@ local Player = require("PlayerLogic")
 local Log = require("Log")
 
 PlayerMgr["players"] = PlayerMgr["players"] or {}
+---@type table<string,string>
 PlayerMgr["userIdToPlayerId"] = PlayerMgr["userIdToPlayerId"] or {}
+---@type table<string,string>
 PlayerMgr["playerIdToUserId"] = PlayerMgr["playerIdToUserId"] or {}
 PlayerMgr["playerIdOnlineList"] = PlayerMgr["playerIdOnlineList"] or {}
 
