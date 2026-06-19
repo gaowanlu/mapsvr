@@ -2,14 +2,13 @@
 
 MapSvr is a game server framework built on top of [@mfavant/avant](https://github.com/mfavant/avant).
 
-It supports seamless logic hot-reloading without server downtime and allows clients to connect
-via TCP, UDP, and WebSocket. Inter-process communication between server instances is handled
-through TCP-based protocol exchange. All protocols are uniformly defined using
-[@protocolbuffers/protobuf](https://github.com/protocolbuffers/protobuf).
+It supports seamless hot-reloading of game logic without server downtime, and allows clients to
+connect via TCP, UDP, and WebSocket. Inter-process communication between server instances is
+handled over TCP using [Protocol Buffers](https://github.com/protocolbuffers/protobuf).
 
 ## How to Build
 
-Please refer to the [Dockerfile](./Dockerfile) in this project for the complete image build process.
+See the [Dockerfile](./Dockerfile) for the complete build process.
 
 ## Configuration Files
 
@@ -18,28 +17,28 @@ Configuration files are located under the [config](./config/) directory:
 - [main.ini](./config/main.ini)
 - [ipc.json](./config/ipc.json)
 
-Task types can be configured as either **TCP Stream** or **WebSocket**.
+Supported task types are **TCP Stream** and **WebSocket**.
 
 ## How to Add a New Protocol
 
-There are two important core concepts in MapSvr:
+MapSvr is built around two core concepts:
 
 - **Protocol-based communication**
 - **Asynchronous processing**
 
-All inter-process communication is performed via asynchronous protocol messages.
+All inter-process communication uses asynchronous protocol messages.
 
 ### Protocol Definition
 
-- All `.proto` files are placed under the `protocol` directory.
-- After adding a new protocol, it must be registered in `lua_plugin.cpp` by defining a new mapping between `Cmd` and the corresponding Protobuf message factory.
+- All `.proto` files live under the `protocol/` directory.
+- After adding a new protocol, register it in `lua_plugin.cpp` by mapping the `Cmd` value to the corresponding Protobuf message factory.
 
-Once registered, when Avant receives a known protocol message, it will:
+Once registered, when Avant receives a known protocol message it will:
 
 1. Convert the C++ Protobuf message into a Lua table
-2. Dispatch it to the corresponding Lua VM for processing
+2. Dispatch it to the appropriate Lua VM for processing
 
-Similarly, when Lua sends a Lua table to C++, it will be converted back into a C++ Protobuf message.
+The reverse conversion also applies: when Lua sends a Lua table to C++, it is converted back into a C++ Protobuf message.
 
 ### Example: Registering Protocol Messages
 
@@ -80,18 +79,21 @@ void lua_plugin::init_message_factory()
 
 ## Generating Lua Type Annotations from Protobuf
 
-We rely heavily on Protobuf-defined types and expect them to automatically generate Lua type
-annotations, including enum support.
+MapSvr relies heavily on Protobuf-defined types, so we auto-generate Lua type annotations
+(including enums) from the `.proto` files.
 
-The [generate_proto_lua.js](./generate_proto_lua.js) script can generate corresponding Lua files for all `.proto` files under the [protocol directory](./protocol/) and place them into [ProtoLua](./lua/ProtoLua/).
+The [generate_proto_lua.js](./generate_proto_lua.js) script reads all `.proto` files under the
+[protocol/](./protocol/) directory and generates corresponding Lua files into
+[ProtoLua/](./lua/ProtoLua/).
 
-These files should then be required in Lua code (e.g. [MsgHandlerLogic.lua](./lua/Msg/MsgHandlerLogic.lua)).
+These generated files should be `require`d in Lua code (e.g. in
+[MsgHandlerLogic.lua](./lua/Msg/MsgHandlerLogic.lua)).
 
-With the EmmyLua plugin, this enables:
+With the EmmyLua VSCode extension, this enables:
 
-* Field auto-completion
-* Type checking
-* Enum hints
+- Field auto-completion
+- Type checking
+- Enum hints
 
 Example in MsgHandlerLogic.lua
 
@@ -107,90 +109,77 @@ local ProtoLuaTunnel = require("ProtoLuaTunnel");
 
 ## Message Handling in Lua
 
-All protocol handling logic is located in MsgHandlerLogic.lua.
+All protocol handling logic lives in [MsgHandlerLogic.lua](./lua/Msg/MsgHandlerLogic.lua).
 
-* `MsgHandler:HandlerMsgFromUDP`
-    Handles incoming UDP packets
-* `MsgHandler:HandlerMsgFromOther`
-    Handles messages from other server processes
-* `MsgHandler:HandlerMsgFromClient`
-    Handles messages from client connections
-* `MsgHandler:Send2UDP`
-    Sends UDP packets to a target IP and port
-* `MsgHandler:Send2IPC`
-    Sends protocol messages to other processes
-* `MsgHandler:Send2Client`
-    Sends protocol messages to client connections (WebSocket or TCP)
+| Method | Description |
+|--------|-------------|
+| `MsgHandler:HandlerMsgFromUDP` | Handles incoming UDP packets |
+| `MsgHandler:HandlerMsgFromOther` | Handles messages from other server processes |
+| `MsgHandler:HandlerMsgFromClient` | Handles messages from client connections |
+| `MsgHandler:Send2UDP` | Sends a UDP packet to a target IP and port |
+| `MsgHandler:Send2IPC` | Sends a protocol message to another process |
+| `MsgHandler:Send2Client` | Sends a protocol message to a client (TCP or WebSocket) |
 
 ## About dbsvrgo
 
-[dbsvrgo](./dbsvrgo/) is a database service written in Go that communicates with Avant via TCP Protobuf.
-All database operations are handled exclusively within the `dbsvrgo` process.
+[dbsvrgo](./dbsvrgo/) is a Go-based database service that communicates with Avant over TCP using
+Protocol Buffers. All database operations are handled exclusively inside `dbsvrgo`.
 
-Lua-based game logic servers communicate with `dbsvrgo` asynchronously using protocol messages.
+The Lua game logic in Avant communicates with `dbsvrgo` asynchronously via protocol messages:
 
-```bash
-avant(MapSvrGo luaVM) <---- TCP Protobuf ----> dbsvrgo(MySQL)
+```
+avant (MapSvr luaVM) <---- TCP Protobuf ----> dbsvrgo (MySQL)
   appId: 1.1.1.1                               appId: 1.1.2.1
 ```
 
-## How to call MapSvr.OnSafeStop()
+## Safe Shutdown via `MapSvr.OnSafeStop()`
 
-Define your own UDP shutdown protocol, such as:
+Define a custom UDP shutdown protocol and invoke
+[`MapSvr.OnSafeStop()`](./lua/MapSvr.lua) using the messages defined in
+[proto_udp.proto](./protocol/proto_udp.proto) (`ProtoUDPSafeStopReq` / `ProtoUDPSafeStopRes`).
 
-[TypeScript UDP Client](./testing/testing_client.ts) 
+An example TypeScript UDP client is available at
+[testing_client.ts](./testing/testing_client.ts).
 
-to call [MapSvr.OnSafeStop()](./lua/MapSvr.lua) 
+Sending this shutdown message triggers cleanup logic before the process exits, such as:
 
-by [ProtoUDPSafeStopReq & ProtoUDPSafeStopRes](./protocol/proto_udp.proto) .
+- Kicking all connected players offline
+- Persisting all player data to the database
+- Rejecting new login attempts
 
-Before stopping the process, send a custom UDP shutdown message to handle necessary logic such as:
+## Hot-Reloading Game Logic
 
-* Forcing all players offline
-* Persisting all player data to the database
-* Preventing new player logins
-
-## How to Hot-Reload Game Logic
-
-Logic hot-reloading is triggered via a process signal without stopping the server.
-When the signal is received, `MapSvr.OnReload` will be invoked.
+Game logic can be hot-reloaded by sending a signal to the process — no server restart is needed.
+Upon receiving the signal, `MapSvr.OnReload` is invoked:
 
 ```bash
-kill -SIGUSR1 PID
+kill -SIGUSR1 <PID>
 ```
 
-MapSvr.OnReload reloads the specified Lua logic files.
+`MapSvr.OnReload` reloads the specified Lua logic files.
 
-⚠️ Warning
-
-If an error occurs during reload (e.g. syntax or runtime error),
-the process will crash immediately. This is a dangerous operation and should be avoided
-unless absolutely necessary.
-
-A crash during reload may interrupt database persistence logic,
-potentially causing data loss or rollback.
+> ⚠️ **Warning**
+> If an error occurs during reload (e.g. a syntax or runtime error), the process will crash
+> immediately. This is a dangerous operation and should be used with caution.
+> A crash during reload may interrupt in-flight database persistence logic, potentially causing data loss or rollback.
 
 ## Debugging Lua Code
 
-Recommended setup:
+The recommended setup uses VSCode with the [EmmyLua](https://marketplace.visualstudio.com/items?itemName=EmmyLua.emmylua) extension.
 
-* VSCode
-* EmmyLua (VSCode extension)
+### Building `emmy_core.so`
 
-### Building emmy_core.so
-
-Reference: https://github.com/EmmyLua/EmmyLuaDebugger
+See the [EmmyLuaDebugger](https://github.com/EmmyLua/EmmyLuaDebugger) repository for details.
 
 ```bash
-mkdir build
-cd build
+mkdir build && cd build
 cmake .. -DEMMY_LUA_VERSION=54 -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ```
 
-### CMake Integration
+### Integrating with CMake
 
-Copy emmy_core.so into the MapSvr directory and update lua_plugin.cpp.
+Copy the built `emmy_core.so` into the mapsvr directory and update `lua_plugin.cpp` as shown below.
 
 ```cpp
 // Declare in lua_plugin.cpp
@@ -223,21 +212,21 @@ Link `emmy_core.so` when building Avant:
 target_link_libraries(${PROJECT_NAME} ... /path/to/emmy_core.so ${EXTERNAL_LIB})
 ```
 
-### Using emmy_core in Lua
+### Using `emmy_core` in Lua
 
-Other.lua
+[Other.lua](./lua/Other.lua)
 
 ```lua
 local Other = {};
 local Log = require("Log");
 local MapSvr = require("MapSvr")
 
-Other_dbg = {}; -- creating global dbg object
+Other_dbg = {}; -- global dbg object
 
 function Other:OnInit()
     Other_dbg = require("emmy_core")
     Other_dbg.tcpListen("127.0.0.1", 9966)
-    Other_dbg.waitIDE() -- waiting for IDE
+    Other_dbg.waitIDE() -- wait for IDE connection
 
     local log = "OnOtherInit";
     Log:Error(log);
@@ -252,14 +241,14 @@ function Other:OnStop()
 end
 
 function Other:OnTick()
-    Other_dbg.breakHere() -- setting break point
+    Other_dbg.breakHere() -- set breakpoint
     MapSvr.OnTick()
 end
 ```
 
-### VSCode launch.json
+### VSCode `launch.json`
 
-MapSvr/.vscode/launch.json
+Create `.vscode/launch.json` in the mapsvr directory:
 
 ```json
 {
@@ -284,14 +273,14 @@ MapSvr/.vscode/launch.json
 
 ### Starting Avant
 
-After starting the Avant process, the `other` thread will block at
-`Other_dbg.waitIDE()`, waiting for the debugger to attach.
+Once the Avant process starts, the `other` thread blocks at `Other_dbg.waitIDE()`, waiting for
+the debugger to connect.
 
-### Connecting VSCode to Other_dbg
+### Connecting VSCode to `Other_dbg`
 
-In VSCode, open **Run and Debug**, select **EmmyLua New Debug**, and start debugging.
-Once connected, execution will pause when `Other_dbg.breakHere()` is reached.
+In VSCode, open **Run and Debug**, select **EmmyLua New Debug**, and press **Start**.
+Once connected, execution will pause at any `Other_dbg.breakHere()` calls.
 
 ## FAQ
 
-[Frequently Asked Questions](./FAQ.md)
+See [FAQ.md](./FAQ.md) for frequently asked questions.
