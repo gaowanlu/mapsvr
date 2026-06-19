@@ -156,7 +156,7 @@ Logic hot-reloading is triggered via a process signal without stopping the serve
 When the signal is received, `MapSvr.OnReload` will be invoked.
 
 ```bash
-kill -10 PID
+kill -SIGUSR1 PID
 ```
 
 MapSvr.OnReload reloads the specified Lua logic files.
