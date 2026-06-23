@@ -10,14 +10,15 @@ enum ProtoErrCode
     OK                       = 0;
     // 未知错误
     ERR_UNKNOW               = 1;
-    // 目标地图不存在
-    ERR_TARGET_MAP_NOT_FOUND = 2;
-    // UserID不合法
-    EERR_USERID_INPUT_INVALID = 3;
-    // Password不合法
-    ERR_PASSWORD_INPUT_INVALID = 4;
-    // UserID或PassWord不正确
-    ERR_USERID_OR_PASSWORD_NOTMATCH = 5;
     // 服务已关闭
-    EERR_SERVICE_SAFESTOPED = 6;
+    EERR_SERVICE_SAFESTOPED = 2;
+
+    // 目标地图不存在
+    ERR_TARGET_MAP_NOT_FOUND = 1001;
+    // UserID不合法
+    EERR_USERID_INPUT_INVALID = 1002;
+    // Password不合法
+    ERR_PASSWORD_INPUT_INVALID = 1003;
+    // UserID或PassWord不正确
+    ERR_USERID_OR_PASSWORD_NOTMATCH = 1004;
 };

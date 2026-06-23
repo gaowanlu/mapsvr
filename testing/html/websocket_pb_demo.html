@@ -169,36 +169,100 @@ package avant;
 
 enum ProtoCmd
 {
+    // 样例请求
     PROTO_CMD_CS_REQ_EXAMPLE = 0;
+    // 样例返回
     PROTO_CMD_CS_RES_EXAMPLE = 1;
+    // 主线程通知worker线程新的客户端文件描述符
     PROTO_CMD_TUNNEL_MAIN2WORKER_NEW_CLIENT = 2;
+    // 线程之间通信封装包
     PROTO_CMD_TUNNEL_PACKAGE = 3;
+    // 线程之间客户端转发数据
     PROTO_CMD_TUNNEL_CLIENT_FORWARD_MESSAGE = 4;
+    // websocket转发数据给所有客户端
     PROTO_CMD_TUNNEL_WEBSOCKET_BROADCAST = 5;
+    // worker线程通知other线程有新的客户端连接
     PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_NEW_CLIENT_CONNECTION = 6;
+    // other线程向worker发消息样例
     PROTO_CMD_TUNNEL_OTHER2WORKER_TEST = 7;
+    // lua与c++通信样例
     PROTO_CMD_LUA_TEST = 8;
+    // 进程间通信握手协议
     PROTO_CMD_IPC_STREAM_AUTH_HANDSHAKE = 9;
+    // worker发消息到other的lua虚拟机
+    PROOT_CMD_TUNNEL_WORKER2OTHER_LUAVM = 10;
+    // other线程虚拟机发消息给worker内的客户端连接
+    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN = 11;
+    // worker线程通知other线程有客户端断开连接
+    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_CLOSE_CLIENT_CONNECTION = 12;
+    // other线程通知worker线程把某个客户端连接主动断开
+    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKER_CLOSE_CLIENT_CONNECTION = 13;
+    // 优雅停服请求
+    PROTO_CMD_UDP_SAFESTOP_REQ = 14;
+    // 优雅停服返回
+    PROTO_CMD_UDP_SAFESTOP_RES = 15;
 
-    PROOT_CMD_TUNNEL_WORKER2OTHER_LUAVM = 1001;
-    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN = 1002;
-    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_CLOSE_CLIENT_CONNECTION = 1003;
-    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKER_CLOSE_CLIENT_CONNECTION = 1004;
-
+    // 登录请求
     PROTO_CMD_CS_REQ_LOGIN = 2001;
+    // 登录返回
     PROTO_CMD_CS_RES_LOGIN = 2002;
+    // Map2D下发初始化数据
     PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA = 2003;
+    // Map2D客户端向地图心跳请求
     PROTO_CMD_CS_REQ_MAP_PING = 2004;
+    // Map2D客户端向地图心跳返回
     PROTO_CMD_CS_RES_MAP_PONG = 2005;
+    // Map2D客户端输入请求
     PROTO_CMD_CS_REQ_MAP_INPUT = 2006;
+    // Map2D服务器同步给玩家状态
     PROTO_CMD_CS_MAP_NOTIFY_STATE_DATA = 2007;
+    // Map2D进入地图请求
     PROTO_CMD_CS_MAP_ENTER_REQ = 2008;
+    // Map2D进入地图返回
     PROTO_CMD_CS_MAP_ENTER_RES = 2009;
+    // Map2D离开地图请求
     PROTO_CMD_CS_MAP_LEAVE_REQ = 2010;
+    // Map2D离开地图返回
     PROTO_CMD_CS_MAP_LEAVE_RES = 2011;
 
+    // Map3D下发初始化数据
+    PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA = 2012;
+    // Map3D客户端向地图心跳请求
+    PROTO_CMD_CS_REQ_MAP3D_PING = 2013;
+    // Map3D客户端向地图心跳返回
+    PROTO_CMD_CS_RES_MAP3D_PONG = 2014;
+    // Map3D客户端输入请求
+    PROTO_CMD_CS_REQ_MAP3D_INPUT = 2015;
+    // Map3D服务器同步给玩家状态
+    PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA = 2016;
+    // Map3D进入地图请求
+    PROTO_CMD_CS_MAP3D_ENTER_REQ = 2017;
+    // Map3D进入地图返回
+    PROTO_CMD_CS_MAP3D_ENTER_RES = 2018;
+    // Map3D离开地图请求
+    PROTO_CMD_CS_MAP3D_LEAVE_REQ = 2019;
+    // Map3D离开地图返回
+    PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
+
+    // 写dbuserreocord表数据
+    PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;
+    // 检索dbuserrecord表请求
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
+    // 检索dbuserrecord表返回
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002;
+
+    // 创建用户请求
     PROTO_CMD_CS_REQ_CREATE_USER = 3003;
+    // 创建用户返回
     PROTO_CMD_CS_RES_CREATE_USER = 3004;
+    // 插入dbuserreocrd数据请求
+    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
+    // 插入dbuserreocrd数据返回
+    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_RES = 3006;
+    // 登录时检索dbuserrecord请求
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_REQ = 3007;
+    // 登录时检索dbuserrecord返回
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_RES = 3008;
 }
 
 message ProtoPackage

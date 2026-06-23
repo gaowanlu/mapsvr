@@ -39,7 +39,7 @@ The protocol definitions include:
 - **proto_udp.proto**: UDP protocol
 
 ### Hot-Reload
-Triggered via `kill -10 <PID>`, reloads specified Lua files without stopping the server. Defined in:
+Triggered via `kill -SIGUSR1 <PID>`, reloads specified Lua files without stopping the server. Defined in:
 - `MapSvr.OnReload()` for Main VM
 - `Worker:OnReload(workerIdx)` for Worker VM
 - `Other:OnReload()` for Other VM
