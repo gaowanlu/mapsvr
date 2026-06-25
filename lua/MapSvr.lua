@@ -64,6 +64,7 @@ end
 function MapSvr.OnReload()
     -- hot load PlayerLogic scriptss
     local reloadList = {}
+    table.insert(reloadList, "ValidatorLogic");
     table.insert(reloadList, "PlayerLogic")
     table.insert(reloadList, "PlayerMgrLogic")
     table.insert(reloadList, "PlayerCmptBaseLogic")

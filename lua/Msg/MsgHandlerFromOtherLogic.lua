@@ -55,7 +55,7 @@ MsgHandlerFromOther[ProtoLua_ProtoCmd.PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGI
     if MapSvr.IsSafeStop() == true then
         ---@type ProtoLua_ProtoCSResLogin
         local res = {
-            ret = ProtoLua_ProtoErrCode.EERR_SERVICE_SAFESTOPED,
+            ret = ProtoLua_ProtoErrCode.ERR_SERVICE_SAFESTOPED,
             sessionId = playerId
         };
         MsgHandler:Send2Client(clientGID, workerIdx, ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_LOGIN, res);
