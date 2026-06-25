@@ -18,7 +18,7 @@ RUN chmod +x ./*.sh
 RUN ./copy_mapsvr2avant.sh
 
 WORKDIR /mapsvrgo
-RUN node ./generate_proto_lua.js ./protocol/ ./lua/ProtoLua/
+RUN make
 
 WORKDIR /mapsvrgo/avant_dir
 RUN cd external/LuaJIT-2.1.ROLLING \
