@@ -17,8 +17,9 @@ WORKDIR /mapsvrgo/
 RUN chmod +x ./*.sh
 RUN ./copy_mapsvr2avant.sh
 
+# for generate_proto_lua
 WORKDIR /mapsvrgo
-RUN make
+RUN make clean && make
 
 WORKDIR /mapsvrgo/avant_dir
 RUN cd external/LuaJIT-2.1.ROLLING \
