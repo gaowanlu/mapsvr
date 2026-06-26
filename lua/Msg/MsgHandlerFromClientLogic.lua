@@ -291,13 +291,13 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_CREATE_USER] = function 
         return
     end
 
+    ---@type integer
     local ret = ProtoLua_ProtoErrCode.OK
 
-    if #message.userId <= 0 or #message.userId > 64 then
-        ret = ProtoLua_ProtoErrCode.ERR_USERID_INPUT_INVALID
-    end
-    if #message.password <= 0 or #message.password > 64 then
-        ret = ProtoLua_ProtoErrCode.ERR_PASSWORD_INPUT_INVALID
+    ret = Validator.UserIdValidator(message.userId)
+
+    if ret == ProtoLua_ProtoErrCode.OK then
+        ret = Validator.UserPasswordValidator(message.password)
     end
 
     if ret ~= ProtoLua_ProtoErrCode.OK then
