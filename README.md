@@ -2,7 +2,7 @@
 
 MapSvr is a game server framework built on top of [@mfavant/avant](https://github.com/mfavant/avant).
 
-It supports seamless hot-reloading of game logic without server downtime, and allows clients to
+It supports seamless hot-reloading of game logic without server downtime and allows clients to
 connect via TCP, UDP, and WebSocket. Inter-process communication between server instances is
 handled over TCP using [Protocol Buffers](https://github.com/protocolbuffers/protobuf).
 
@@ -112,7 +112,7 @@ local ProtoLuaTunnel = require("ProtoLuaTunnel");
 All protocol handling logic lives in [MsgHandlerLogic.lua](./lua/Msg/MsgHandlerLogic.lua).
 
 | Method | Description |
-|--------|-------------|
+|---|---|
 | `MsgHandler:HandlerMsgFromUDP` | Handles incoming UDP packets |
 | `MsgHandler:HandlerMsgFromOther` | Handles messages from other server processes |
 | `MsgHandler:HandlerMsgFromClient` | Handles messages from client connections |
@@ -127,7 +127,7 @@ Protocol Buffers. All database operations are handled exclusively inside `dbsvrg
 
 The Lua game logic in Avant communicates with `dbsvrgo` asynchronously via protocol messages:
 
-```
+```text
 avant (MapSvr luaVM) <---- TCP Protobuf ----> dbsvrgo (MySQL)
   appId: 1.1.1.1                               appId: 1.1.2.1
 ```
