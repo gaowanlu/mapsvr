@@ -2,6 +2,6 @@
 .DS_Store
 avant
 log/
-avant_dir/
 .vscode/
 lua_demo/
+!thirdparty/avant

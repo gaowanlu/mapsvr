@@ -1,0 +1,3 @@
+[submodule "thirdparty/avant"]
+	path = thirdparty/avant
+	url = https://github.com/mfavant/avant.git

@@ -11,7 +11,7 @@ RUN apt install libssl-dev -y
 RUN apt install -y nodejs npm
 
 WORKDIR /mapsvrgo
-RUN git clone https://github.com/mfavant/avant.git avant_dir
+RUN git submodule update --init --recursive
 
 WORKDIR /mapsvrgo/
 RUN chmod +x ./*.sh
@@ -21,11 +21,11 @@ RUN ./copy_mapsvr2avant.sh
 WORKDIR /mapsvrgo
 RUN make clean && make
 
-WORKDIR /mapsvrgo/avant_dir
+WORKDIR /mapsvrgo/thirdparty/avant
 RUN cd external/LuaJIT-2.1.ROLLING \
     && make clean \
     && make -j3
-WORKDIR /mapsvrgo/avant_dir
+WORKDIR /mapsvrgo/thirdparty/avant
 RUN cd protocol \
     && make \
     && cd .. \
