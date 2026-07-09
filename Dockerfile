@@ -24,7 +24,7 @@ RUN make clean && make
 WORKDIR /mapsvrgo/thirdparty/avant
 RUN cd external/LuaJIT-2.1.ROLLING \
     && make clean \
-    && make -j3
+    && make -j$(nproc)
 WORKDIR /mapsvrgo/thirdparty/avant
 RUN cd protocol \
     && make \
@@ -33,7 +33,7 @@ RUN cd protocol \
     && rm -rf ./build/* \
     && cd build \
     && cmake -DAVANT_JIT_VERSION=ON .. \
-    && make -j3 \
+    && make -j$(nproc) \
     && cd .. \
     && cd bin \
     && ls

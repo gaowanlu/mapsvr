@@ -6,7 +6,7 @@ cd ./thirdparty/avant && \
 cd protocol && make && cd .. && \
 echo "Finished generate_proto_cpp." && \
 mkdir -p build && \
-cd build && cmake .. && make -j10 && cd .. && \
+cd build && cmake .. && make -j$(nproc) && cd .. && \
 echo "Finished build c++." && \
 cd .. && cd .. && pwd &&\
 ./copy_avant_bin.sh && \
