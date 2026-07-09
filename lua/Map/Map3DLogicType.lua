@@ -23,7 +23,7 @@
 ---@field gravity integer 重力
 ---@field weight integer 重量
 ---@field lastSeq integer 最后收到并应用的客户端输入seq
----@field lastClientTime number 客户端发送该seq时的客户端时间(ms)
+---@field lastClientTime string 客户端发送该seq时的客户端时间(ms)
 ---@field dir Vec3f 方向
 ---@field speedRatio number 速度放大比例
 ---@field maxSpeed number 目标最大速度 px/ms

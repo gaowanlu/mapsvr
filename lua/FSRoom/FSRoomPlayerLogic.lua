@@ -77,6 +77,7 @@ end
 function FSRoomPlayer:ConsumeMP(amount)
     if self.MP >= amount then
         self.MP = self.MP - amount;
+        return true;
     end
     return false;
 end

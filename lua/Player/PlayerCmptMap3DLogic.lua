@@ -134,10 +134,7 @@ function PlayerCmptMap3D:MapInputReq(message)
     local dirY = message.dirY;
     local dirZ = message.dirZ;
     local seq = message.seq;
-    local clientTime = tonumber(message.clientTime);
-    if clientTime == nil then
-        clientTime = 0;
-    end
+    local clientTime = message.clientTime;
 
     currMap:MapPlayerInput(self:GetPlayer():GetUserId(), dirX, dirY, dirZ, seq, clientTime);
 end

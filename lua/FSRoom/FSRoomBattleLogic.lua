@@ -135,6 +135,7 @@ function FSRoomBattle:ProcessSkill(player, data)
     local targets = {};
     if targetUserId then
         local target = self.room:GetRoomPlayer(targetUserId);
+        -- 理应必须同时满足 存在 存活 不是自己（除非技能允许）
         if target ~= nil then
             if target:IsAlive() then
                 table.insert(targets, target);

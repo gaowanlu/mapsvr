@@ -40,10 +40,10 @@ end
 -- PlayerCmptInfo.OnTick = nil
 -- 如果热更新把OnTick置为nil则会调用PlayerCmptBase的OnTick
 function PlayerCmptInfo:OnTick()
-    -- 玩家升一级
+    -- 模拟玩家不断升级
     self:UpLevel()
 
-    if (self:GetLevel() > 100) then
+    if (self:GetLevel() >= 100) then
         self:SetLevel(0)
     end
 

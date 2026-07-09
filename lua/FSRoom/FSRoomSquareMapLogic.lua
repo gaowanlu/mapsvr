@@ -124,15 +124,22 @@ function FSRoomSquareMap:IsWalkable(x, y)
     return self.tiles[x][y] == FSRoomSquareMap.TILETYPES.EMPTY;
 end
 
--- 计算两个瓦片之间的距离
+-- 计算两个瓦片之间的距离（A*启发式函数）
+-- 必须保证 h(n) <= 实际代价d(n)，即低估才能保证最优性
 ---@return number
 function FSRoomSquareMap:Distance(x1, y1, x2, y2)
+    local dx = math.abs(x1 - x2);
+    local dy = math.abs(y1 - y2);
+
     if self.allow8Dir then
-        -- 切比雪夫距离（对角线移动）
-        return math.max(math.abs(x1 - x2), math.abs(y1 - y2));
+        -- 对角线移动距离（对角线代价1.414，直线代价1）
+        -- 正确的启发式：对角线步数 * 1.414 + 直线步数 * 1
+        local minD = math.min(dx, dy);
+        local maxD = math.max(dx, dy);
+        return minD * 1.414 + (maxD - minD) * 1;
     else
-        -- 曼哈顿距离（4方向移动）
-        return math.abs(x1 - x2) + math.abs(y1 - y2);
+        -- 曼哈顿距离（4方向移动，代价都是1）
+        return dx + dy;
     end
 end
 

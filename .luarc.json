@@ -6,8 +6,8 @@
       "dbsvrgo",
       "config",
       "avant",
-      "avant_dir",
-      "lua_demo"
+      "lua_demo",
+      "thirdparty"
     ]
   }
 }

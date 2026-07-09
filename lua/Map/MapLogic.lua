@@ -107,7 +107,7 @@ end
 function Map:FindSpawnPoint()
     local mapW = self.tileMap.width * self.tileMap.tileSize
     local mapH = self.tileMap.height * self.tileMap.tileSize
-    return { x = math.modf(mapW / 2), y = math.modf(mapH / 2) }
+    return { x = math.floor(mapW / 2), y = math.floor(mapH / 2) }
 end
 
 -- 新玩家加入地图
