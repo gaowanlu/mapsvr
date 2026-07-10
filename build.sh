@@ -4,41 +4,41 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 AVANT_DIR="$SCRIPT_DIR/thirdparty/avant"
 
-echo "=== MapSvr 构建脚本 ==="
-echo "工作目录: $SCRIPT_DIR"
+echo "=== MapSvr Build Script ==="
+echo "Working directory: $SCRIPT_DIR"
 
-# 检查依赖
-command -v cmake >/dev/null || { echo "错误: cmake 未安装"; exit 1; }
-command -v make >/dev/null || { echo "错误: make 未安装"; exit 1; }
-command -v git >/dev/null || { echo "错误: git 未安装"; exit 1; }
-command -v node >/dev/null || { echo "错误: node 未安装"; exit 1; }
-command -v go >/dev/null || { echo "错误: go 未安装"; exit 1; }
+# Check dependencies
+command -v cmake >/dev/null || { echo "Error: cmake is not installed"; exit 1; }
+command -v make >/dev/null || { echo "Error: make is not installed"; exit 1; }
+command -v git >/dev/null || { echo "Error: git is not installed"; exit 1; }
+command -v node >/dev/null || { echo "Error: node is not installed"; exit 1; }
+command -v go >/dev/null || { echo "Error: go is not installed"; exit 1; }
 
-# 初始化子模块（如果需要）
+# Initialize submodules (if needed)
 if [[ ! -d "$AVANT_DIR" ]]; then
-    echo "=== 初始化 git 子模块 ==="
+    echo "=== Initialize git submodules ==="
     git submodule update --init --recursive
 fi
 
-# 构建流程
-echo "=== 步骤 1/6: 生成 Lua Protobuf 类型 ==="
+# Build process
+echo "=== Step 1/6: Generate Lua Protobuf types ==="
 node ./generate_proto_lua.js ./protocol/ ./lua/ProtoLua/
 
-echo "=== 步骤 2/6: 复制 MapSvr 文件到 Avant ==="
+echo "=== Step 2/6: Copy MapSvr files to Avant ==="
 ./copy_mapsvr2avant.sh
 
-echo "=== 步骤 3/6: 生成 C++ Protobuf 代码 ==="
+echo "=== Step 3/6: Generate C++ Protobuf code ==="
 cd "$AVANT_DIR/protocol" && make
 
-echo "=== 步骤 4/6: 编译 Avant C++ 核心 ==="
+echo "=== Step 4/6: Compile Avant C++ core ==="
 cd "$AVANT_DIR"
 mkdir -p build && cd build
 cmake .. && make -j$(nproc)
 
-echo "=== 步骤 5/6: 复制二进制文件回项目 ==="
+echo "=== Step 5/6: Copy binary files back to project ==="
 cd "$SCRIPT_DIR" && ./copy_avant_bin.sh
 
-echo "=== 步骤 6/6: 构建数据库服务 ==="
+echo "=== Step 6/6: Build database service ==="
 cd "$SCRIPT_DIR/dbsvrgo" && ./build.sh
 
-echo "=== 构建完成 ==="
+echo "=== Build completed ==="
