@@ -173,7 +173,7 @@ function FSRoomIsometricMap:GetNeighbors(x, y)
                 -- 对角线移动需要两侧都可通行
                 local side1 = self:IsWalkable(x + dir.x, y);
                 local side2 = self:IsWalkable(x, y + dir.y);
-                if side1 or side2 then -- 至少一侧可通行
+                if side1 and side2 then
                     table.insert(neighbors, { x = nx, y = ny });
                 end
             else

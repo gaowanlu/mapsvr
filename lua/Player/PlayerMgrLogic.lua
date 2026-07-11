@@ -66,8 +66,15 @@ function PlayerMgr.BindUserIdAndPlayerId(userId, playerId)
         return
     end
 
+    if nil ~= PlayerMgr.GetPlayerByUserId(userId) then
+        Log:Error("BindUserIdAndPlayerId failed, userId %s exists", userId);
+        return
+    end
+
     PlayerMgr.userIdToPlayerId[userId] = playerId
     PlayerMgr.playerIdToUserId[playerId] = userId
+
+    Log:Error("BindUserIdAndPlayerId success, userId %s playerId %s", userId, playerId);
 end
 
 ---@param userId string

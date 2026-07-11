@@ -261,7 +261,7 @@ function FSRoomSquareMapAStar:FindPath(squareMap, startX, startY, goalX, goalY)
                     -- Push会自动处理 不在堆中就添加 已在堆中就更新优先级
                     openSet:Push(neighbor, fScore[neighborKey]);
                 end
-            until true;
+            until true; -- 循环只跑一次当 continue 用
         end
     end
 

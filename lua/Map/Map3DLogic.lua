@@ -174,7 +174,7 @@ function Map3D:MapPlayerInput(userId, dirX, dirY, dirZ, seq, clientTime)
         map3DPlayer.lastSeq = 0
     end
 
-    if map3DPlayer.lastSeq + 1 ~= seq then
+    if seq ~= map3DPlayer.lastSeq + 1 then
         Log:Error(
             "userId %s map3DPlayer.lastSeq %s + 1 ~= seq %s in mapId %s", tostring(userId),
             tostring(map3DPlayer.lastSeq), tostring(seq), tostring(self:GetMapId())
@@ -329,12 +329,12 @@ function Map3D:FixedUpdate(timeMS)
 
             playersPayload[#playersPayload + 1] = {
                 userId = pl.userId,
-                x = math.modf(pl.pos.x) or 0,
-                y = math.modf(pl.pos.y) or 0,
-                z = math.modf(pl.pos.z) or 0,
-                vX = math.modf(pl.v.x) or 0,
-                vY = math.modf(pl.v.y) or 0,
-                vZ = math.modf(pl.v.z) or 0,
+                x = math.floor(pl.pos.x) or 0,
+                y = math.floor(pl.pos.y) or 0,
+                z = math.floor(pl.pos.z) or 0,
+                vX = math.floor(pl.v.x) or 0,
+                vY = math.floor(pl.v.y) or 0,
+                vZ = math.floor(pl.v.z) or 0,
                 lastSeq = pl.lastSeq or 0,
                 lastClientTime = pl.lastClientTime
             }

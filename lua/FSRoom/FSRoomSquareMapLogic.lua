@@ -178,10 +178,10 @@ function FSRoomSquareMap:GetNeighbors(x, y)
         if self:IsInBounds(nx, ny) and self:IsWalkable(nx, ny) then
             -- 8方向移动时，检查对角线是否被阻挡
             if self.allow8Dir and (dir.x ~= 0 and dir.y ~= 0) then
-                -- 对角线移动需要两侧至少一侧可通行
+                -- 对角线移动需要两侧可通行
                 local side1 = self:IsWalkable(x + dir.x, y);
                 local side2 = self:IsWalkable(x, y + dir.y);
-                if side1 or side2 then
+                if side1 and side2 then
                     table.insert(neighbors, { x = nx, y = ny });
                 end
             else

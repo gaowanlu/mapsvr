@@ -287,11 +287,11 @@ function Map:FixedUpdate(timeMS)
 
             playersPayload[#playersPayload + 1] = {
                 userId = o.userId,
-                x = math.modf(pl.x) or 0,
-                y = math.modf(pl.y) or 0,
-                vX = math.modf(pl.vX) or 0,
-                vY = math.modf(pl.vY) or 0,
-                lastSeq = math.modf(pl.lastSeq) or 0,
+                x = math.floor(pl.x) or 0,
+                y = math.floor(pl.y) or 0,
+                vX = math.floor(pl.vX) or 0,
+                vY = math.floor(pl.vY) or 0,
+                lastSeq = math.floor(pl.lastSeq) or 0,
                 lastClientTime = pl.lastClientTime
             };
         end
@@ -329,7 +329,8 @@ function Map:MapPlayerInput(userId, dirX, dirY, seq, clientTime)
         mapPlayer.lastSeq = 0;
     end
 
-    if mapPlayer.lastSeq + 1 ~= seq then
+    if seq ~= mapPlayer.lastSeq + 1 then
+        Log:Error("MapPlayerInput seq error userId %s lastSeq %d seq %d", userId, mapPlayer.lastSeq, seq)
         return
     end
 

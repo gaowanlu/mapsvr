@@ -46,7 +46,7 @@ function PlayerCmptBag:TestAddItemByItemID(itemID, count)
     end
     local hasNumber = self:GetItemCountByItemID(itemID);
 
-    if hasNumber > avant.INT32_MAX - count then
+    if count > avant.INT32_MAX - hasNumber then
         return false;
     end
 
@@ -134,17 +134,17 @@ function PlayerCmptBag:SubItemByItemID(itemID, count)
         for i = #dbBagData.bagItemList, 1, -1 do
             if dbBagData.bagItemList[i].itemID == itemID then
                 table.remove(dbBagData.bagItemList, i);
+                dbPlayerBagItem = nil;
                 break
             end
         end
-
-        return true;
     end
 
     return true;
 end
 
 function PlayerCmptBag:OnTick()
+    -- 调试测试代码
     if self:TestAddItemByItemID(1, 100) then
         self:AddItemByItemID(1, 100);
     else

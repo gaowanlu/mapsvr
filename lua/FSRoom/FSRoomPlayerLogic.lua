@@ -111,13 +111,25 @@ function FSRoomPlayer:SetSkillCooldown(skillId, cooldown)
     return true;
 end
 
----为所有技能ID冷却值-1
-function FSRoomPlayer:UpdateCooldowns()
+---为所有技能ID冷却值减少 cooldownReduction
+---@param cooldownReduction number 冷却减少值
+---@return boolean 是否成功
+function FSRoomPlayer:SubCooldownsForAllSkillID(cooldownReduction)
+    if cooldownReduction <= 0 then
+        return false;
+    end
+
     for skillId, cooldown in pairs(self.skillCooldowns) do
         if cooldown > 0 then
-            self.skillCooldowns[skillId] = cooldown - 1;
+            if cooldownReduction >= cooldown then
+                self.skillCooldowns[skillId] = 0;
+            else
+                self.skillCooldowns[skillId] = cooldown - cooldownReduction;
+            end
         end
     end
+
+    return true;
 end
 
 ---检查玩家是否还存活着

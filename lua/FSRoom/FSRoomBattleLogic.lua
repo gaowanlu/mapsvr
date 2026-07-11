@@ -4,6 +4,7 @@
 local FSRoomBattle = require("FSRoomBattleData");
 
 local FSRoomSquareMapAStar = require("FSRoomSquareMapAStarLogic");
+local FSRoomPlayerSkill = require("FSRoomPlayerSkillLogic");
 
 --- 创建新的FSRoomBattle对象
 ---@param room FSRoom
@@ -29,6 +30,7 @@ function FSRoomBattle:ProcessCommand(command)
 
     local result = { success = true, commandType = command.commandType };
 
+    -- 临时使用字面常量作为 commandType 的判断条件
     if command.commandType == "move" then
         result = self:ProcessMove(player, command.data);
     elseif command.commandType == "skill" then
@@ -110,7 +112,6 @@ function FSRoomBattle:ProcessSkill(player, data)
     local targetUserId = data.targetUserId;
 
     -- 查找技能
-    local FSRoomPlayerSkill = require("FSRoomPlayerSkillLogic");
     local skill = FSRoomPlayerSkill.GetSkill(skillId);
     if not skill then
         return {
@@ -125,7 +126,7 @@ function FSRoomBattle:ProcessSkill(player, data)
     if not canCast then
         return {
             success = false,
-            error = "技能暂时无法释放",
+            error = "Skill cannot be cast",
             userId = player.userId
         };
     end
@@ -133,15 +134,6 @@ function FSRoomBattle:ProcessSkill(player, data)
     -- 查找目标玩家
     ---@type table<integer,FSRoomPlayer>
     local targets = {};
-    if targetUserId then
-        local target = self.room:GetRoomPlayer(targetUserId);
-        -- 理应必须同时满足 存在 存活 不是自己（除非技能允许）
-        if target ~= nil then
-            if target:IsAlive() then
-                table.insert(targets, target);
-            end
-        end
-    end
 
     -- 查找技能范围内的所有玩家
     if skill.aoeRadius > 0 then
@@ -152,7 +144,7 @@ function FSRoomBattle:ProcessSkill(player, data)
                 local distance = self.map:Distance(px, py, targetX, targetY);
 
                 if distance <= skill.aoeRadius then
-                    if not targetUserId or p.userId ~= targetUserId then
+                    if not targetUserId or p.userId == targetUserId then
                         table.insert(targets, p);
                     end
                 end
@@ -176,7 +168,7 @@ function FSRoomBattle:UpdateFrame()
     -- 为所有玩家更新技能冷却
     for _, player in pairs(self.room.roomPlayers) do
         if player:IsAlive() then
-            player:UpdateCooldowns();
+            player:SubCooldownsForAllSkillID(1); -- 假设每帧减少1秒的冷却时间
         end
     end
 end
@@ -193,7 +185,8 @@ function FSRoomBattle:CheckGameEnd()
         end
     end
 
-    if #alivePlayers <= 1 then
+    -- 如果只剩一个玩家活着 则游戏结束 胜利者就是这个玩家
+    if #alivePlayers == 1 then
         local winnerUserId = nil;
         if #alivePlayers == 1 then
             winnerUserId = alivePlayers[1].userId;
@@ -201,6 +194,7 @@ function FSRoomBattle:CheckGameEnd()
         return true, winnerUserId;
     end
 
+    -- 如果没有玩家活着 则游戏结束 没有胜利者
     return false, nil;
 end
 

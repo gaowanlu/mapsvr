@@ -233,7 +233,7 @@ end
 --- PROTO_CMD_CS_REQ_MAP3D_INPUT 地图3D内客户端上报输入
 ---@param message ProtoLua_ProtoCSReqMap3DInput
 MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_INPUT] = function (
-    playerId, _clientGID, _workerIdx, _cmd, message
+    playerId, clientGID, workerIdx, cmd, message
 )
     local player = PlayerMgr.GetPlayerByPlayerId(playerId)
     if player == nil then
