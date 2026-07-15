@@ -376,3 +376,509 @@ MapSvr 是一个基于 Avant 框架的 Lua 游戏服务器框架，具备热重�
 | 1002 | ERR_USERID_INPUT_INVALID | 用户 ID 无效 |
 | 1003 | ERR_PASSWORD_INPUT_INVALID | 密码无效 |
 | 1004 | ERR_USERID_OR_PASSWORD_NOTMATCH | 用户名或密码错误 |
+
+---
+
+## Lua 协程使用指南
+
+### 1. 框架架构背景
+
+MapSvr 采用 **多线程事件驱动** 架构，由三个实际运行游戏逻辑的 Lua VM 组成：
+
+| VM | 入口点 | 热重载触发 | 用途 |
+|---|---|---|---|
+| **Main** | `Main:OnInit()` / `Main:OnReload()` | `Main:OnReload()` | 初始设置，目前是空实现 |
+| **Worker** | `Worker:OnInit(workerIdx)` | `Worker:OnReload(workerIdx)` | 客户端连接处理（1-511 个实例） |
+| **Other** | `Other:OnInit()` | `Other:OnReload()` | **核心游戏逻辑**（Player、Map、FSRoom 等） |
+
+**C++ 与 Lua VM 的对应关系**：
+
+| C++ 线程 | Lua VM | Lua 状态指针 |
+|---|---|---|
+| Main thread (C++) | Main VM | `lua_state` |
+| Worker threads (C++) | Worker VMs | `worker_lua_state[worker_idx]` |
+| Other thread (C++) | Other VM | `other_lua_state` |
+
+**消息流程**：
+```
+C++ Main thread: 接受客户端套接字连接
+    ↓
+C++ Worker thread: 读取/解包客户端消息
+    ↓
+Other VM (MapSvr.OnLuaVMRecvMessage): 处理游戏逻辑
+    ↓
+C++ Worker thread: 发送响应给客户端
+```
+
+**关键点**：
+- `MapSvr` 模块（`MapSvr.lua`）在 **Other VM** 中运行
+- Main VM 目前只是空实现
+- Worker VM 只处理客户端连接事件，不处理游戏逻辑
+- 所有游戏逻辑在 Other VM 的 `OnTick()` 中串行执行
+- C++ 通过 `lua_pcall` 调用 Lua 函数
+
+---
+
+### 2. 协程兼容性
+
+#### C++ 调用与协程
+
+`lua_pcall` **不阻止** 协程的使用。协程是在 Lua 层面实现的，C++ 调用者不需要做特殊处理：
+
+```cpp
+// C++ 调用 - 完全支持
+int result = lua_pcall(L, nargs, nresults, 0);
+// 这个 pcall 可以调用一个使用协程的 Lua 函数
+```
+
+#### 支持的操作
+
+| 场景 | 是否支持 | 说明 |
+|------|---------|------|
+| `coroutine.create()` | ✅ 支持 | 在 C++ 调用中创建协程完全合法 |
+| `coroutine.resume()` from Lua | ✅ 支持 | Lua 代码中恢复协程 |
+| `coroutine.yield()` to Lua | ✅ 支持 | 可以 yield 回 Lua 调用者 |
+
+#### 限制
+
+| 场景 | 是否支持 | 说明 |
+|------|---------|------|
+| `coroutine.resume()` from C++ | ⚠️ 谨慎 | 需要处理 Lua 栈状态变化 |
+| `coroutine.yield()` to C++ | ❌ 禁止 | 不能从 C 函数中间 yield |
+
+#### 其他 VM 中的协程
+
+**重要**：Worker VM 也可以使用协程，每个 Worker 有自己的独立 Lua 状态 (`worker_lua_state[worker_idx]`)，所以：
+
+| VM | 协程状态 | 说明 |
+|---|---|---|
+| Main VM | 独立 | 主线程，通常不用于游戏逻辑 |
+| Worker VMs | 独立 | 每个 Worker 有独立协程状态 |
+| Other VM | 独立 | 核心游戏逻辑，协程主要使用场景 |
+
+**跨 VM 协程通信**：由于每个 VM 有独立的 Lua 状态，协程**不能**直接在 VM 间共享。需要通过 C++ 层面的 IPC 消息传递。
+
+---
+
+### 3. 推荐的协程使用场景
+
+#### 场景 1：异步数据库操作封装
+
+当前 `MsgHandlerFromOtherLogic.lua` 中的数据库回调是"拉模式"，可以改为协程"推模式"：
+
+```lua
+-- 协程方式：看起来像同步
+function MsgHandlerFromOther:handleLogin(cmd, message, app_id)
+    local playerId = message.playerId
+    local result = awaitDB(function(send)
+        send(avant:GetDBSvrGoAppID(), 
+             ProtoLua_ProtoCmd.PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_REQ, 
+             message)
+    end)
+    
+    if result then
+        -- 直接使用 result 处理登录
+        self:processLogin(playerId, result)
+    end
+end
+```
+
+#### 场景 2：长时间计算分帧执行
+
+例如 `FSRoomBattleLogic.lua` 中的 AStar 路径搜索：
+
+```lua
+function FSRoomBattle:ProcessMove(player, data)
+    local pathFinder = AStarFinder.new(self.map, player:GetPosition(), data)
+    
+    -- 分帧执行，避免卡顿
+    local success = pathFinder:computeStepByStep()
+    if success then
+        player:MoveAlongPath(pathFinder:path())
+    else
+        -- 继续下一帧
+        return false
+    end
+end
+```
+
+#### 场景 3：延迟执行
+
+```lua
+function FSRoom:FinishGameAsync(winnerUserId, reason, delayMS)
+    local startTime = TimeMgr.GetMS()
+    
+    while TimeMgr.GetMS() - startTime < delayMS do
+        coroutine.yield()  -- 每帧让出，让其他逻辑执行
+    end
+    
+    self:FinishGame(winnerUserId, reason)
+end
+```
+
+#### 场景 4：网络请求链式调用
+
+```lua
+function MsgHandlerFromClient:handleLogin(playerId, clientGID, workerIdx, cmd, message)
+    local player = createPlayerAsync(playerId)
+    local dbData = loadDBDataAsync(player, message.userId)
+    local config = loadConfigAsync()
+    
+    self:loginPlayer(player, dbData, config)
+end
+```
+
+---
+
+### 4. 实现方案
+
+#### 方案 A：简单协程调度器
+
+```lua
+-- lua/Coroutine/SimpleScheduler.lua
+local CoroutineScheduler = {}
+
+function CoroutineScheduler.new()
+    return setmetatable({
+        coroutines = {},
+        nextId = 1,
+    }, { __index = CoroutineScheduler })
+end
+
+function CoroutineScheduler:spawn(func)
+    local co = coroutine.create(func)
+    self.coroutines[self.nextId] = co
+    self.nextId = self.nextId + 1
+    return self.nextId - 1
+end
+
+function CoroutineScheduler:resumeAll()
+    local alive = {}
+    for id, co in pairs(self.coroutines) do
+        if coroutine.status(co) ~= "dead" then
+            local ok, err = coroutine.resume(co)
+            if not ok or coroutine.status(co) == "dead" then
+                if not ok then
+                    Log:Error("Coroutine error: %s", tostring(err))
+                end
+                -- 协程结束或出错
+            else
+                alive[id] = co
+            end
+        end
+    end
+    self.coroutines = alive
+end
+
+return CoroutineScheduler
+```
+
+**在 Other VM 中集成**（推荐）：
+
+```lua
+-- MapSvr.lua
+function MapSvr.OnInit()
+    if not MapSvr.coroutineScheduler then
+        MapSvr.coroutineScheduler = require("Coroutine.SimpleScheduler").new()
+    end
+end
+
+function MapSvr.OnTick()
+    -- 调度所有挂起的协程
+    if MapSvr.coroutineScheduler then
+        MapSvr.coroutineScheduler:resumeAll()
+    end
+    
+    PlayerMgr.OnTick()
+    MapMgr.OnTick()
+    FSRoomMgr.OnTick()
+    Map3DMgr.OnTick()
+end
+```
+
+**在 Worker VM 中集成**（如果需要异步连接处理）：
+
+```lua
+-- Worker.lua
+local CoroutineScheduler = require("Coroutine.SimpleScheduler")
+
+function Worker:OnTick(workerIdx)
+    CoroutineScheduler:resumeAll()
+end
+```
+
+#### 方案 B：异步回调转协程
+
+```lua
+-- lua/Coroutine/AsyncBridge.lua
+local AsyncBridge = {}
+
+function AsyncBridge.wrapCallback(fn)
+    return function(...)
+        local co = coroutine.running()
+        local results = {}
+        local done = false
+        
+        local function callback(...)
+            if not done then
+                done = true
+                results = {...}
+                coroutine.resume(co, true, ...)
+            end
+        end
+        
+        fn(callback, ...)
+        
+        if not done then
+            local ok, err = coroutine.yield()
+            if ok then
+                return unpack(results)
+            end
+            error(err)
+        end
+    end
+end
+
+return AsyncBridge
+```
+
+使用：
+
+```lua
+local AsyncBridge = require("Coroutine.AsyncBridge")
+
+-- 包装 IPC 调用
+local sendToIPC = AsyncBridge.wrapCallback(function(cb, appId, cmd, message)
+    MsgHandler:Send2IPC(appId, cmd, message, cb)  -- 传入回调
+end)
+
+-- 使用
+local result = sendToIPC(appId, cmd, message)
+-- 直接使用 result
+```
+
+#### 方案 C：超时控制
+
+```lua
+function withTimeout(timeoutMS, fn)
+    local startTime = TimeMgr.GetMS()
+    local result
+    
+    local co = coroutine.create(function()
+        result = fn()
+    end)
+    
+    coroutine.resume(co)
+    
+    while coroutine.status(co) ~= "dead" do
+        if TimeMgr.GetMS() - startTime > timeoutMS then
+            coroutine.close(co)
+            error("Timeout: operation took longer than " .. timeoutMS .. "ms")
+        end
+        coroutine.yield()  -- 等待下一帧
+    end
+    
+    return result
+end
+
+-- 使用
+local dbResult = withTimeout(5000, function()
+    return queryDatabase(sql)
+end)
+```
+
+---
+
+### 4. 其他 VM 中的协程使用
+
+#### Worker VM 协程使用场景
+
+虽然 Worker VM 主要用于连接处理，但以下场景可能需要协程：
+
+1. **异步连接验证** - 连接时需要调用外部服务验证
+2. **批量数据加载** - 玩家连接时加载大量配置数据
+3. **跨 VM 通信优化** - 减少回调嵌套
+
+```lua
+-- Worker.lua
+local CoroutineScheduler = require("Coroutine.SimpleScheduler")
+
+function Worker:OnTick(workerIdx)
+    CoroutineScheduler:resumeAll()
+end
+
+-- 连接事件处理
+function Worker:OnEventNewConnection(workerIdx, clientId)
+    CoroutineScheduler:spawn(function()
+        local isValid = verifyClientAsync(clientId)
+        if isValid then
+            -- 发送验证通过消息
+        end
+    end)
+end
+```
+
+#### 跨 VM 协程通信
+
+由于每个 VM 有独立的 Lua 状态，协程不能直接跨 VM 共享。需要通过 C++ 层面的 IPC 消息传递：
+
+```lua
+-- Other VM 中启动协程
+function MapSvr:HandlePlayerRequest(data)
+    local co = coroutine.create(function()
+        local result = sendToWorkerAsync(data)  -- 发送到 Worker VM
+        local response = waitForResponse()       -- 等待 Worker VM 响应
+        return response
+    end)
+    CoroutineScheduler:spawn(co)
+end
+```
+
+---
+
+### 5. 关键注意事项
+
+#### 注意事项 1：协程泄漏
+
+```lua
+-- ❌ 错误：协程创建后无人 resume
+local co = coroutine.create(fn)
+coroutine.resume(co)
+-- 如果 fn 中 yield 了，协程挂起但没人再 resume
+
+-- ✅ 正确：确保协程要么完成，要么有后续调度
+local scheduler = require("Coroutine.SimpleScheduler")
+scheduler:spawn(fn)
+```
+
+#### 注意事项 2：全局状态竞争
+
+```lua
+-- ❌ 错误：多个协程共享全局状态
+globalVar = nil
+coroutine.wrap(function()
+    globalVar = "value"  -- 可能被其他协程覆盖
+end)()
+
+-- ✅ 正确：使用局部变量
+coroutine.wrap(function()
+    local localVar = "value"  -- 每个协程独立
+end)()
+```
+
+#### 注意事项 3：C 函数中 yield
+
+```lua
+-- ❌ 错误：在 C 函数中间 yield
+function cppWrapper()
+    lua_pcall(...)  -- 这里不能 yield
+end
+
+-- ✅ 正确：yield 只能在纯 Lua 代码中
+function luaWrapper()
+    local result = cppWrapper()  -- C 调用
+    coroutine.yield()  -- 这里可以 yield
+end
+```
+
+#### 注意事项 4：错误处理
+
+```lua
+-- ✅ 正确：使用 xpcall 捕获协程错误
+function CoroutineScheduler:resumeAll()
+    for id, co in pairs(self.coroutines) do
+        local ok, err = coroutine.resume(co)
+        if not ok then
+            Log:Error("Coroutine %d error: %s", id, tostring(err))
+            -- 不要中断其他协程
+        end
+    end
+end
+```
+
+#### 注意事项 5：协程数量控制
+
+```lua
+-- 建议：限制协程数量
+MAX_COROUTINES = 100
+
+function CoroutineScheduler:spawn(func)
+    if #self.coroutines >= MAX_COROUTINES then
+        Log:Warn("Coroutine limit reached, ignoring spawn request")
+        return nil
+    end
+    -- ...
+end
+```
+
+#### 注意事项 6：Other VM vs Worker VM
+
+| 场景 | 推荐 VM | 原因 |
+|---|---|---|
+| 游戏逻辑处理 | Other VM | 核心逻辑集中管理 |
+| 客户端连接处理 | Worker VM | 每个连接一个 Worker |
+| 网络请求 | Other VM | 统一的网络处理 |
+| 连接验证 | Worker VM | 与连接绑定 |
+
+**推荐**：主要协程使用在 **Other VM** 中，Worker VM 只在必要时使用。
+
+---
+
+### 6. 推荐的改造优先级
+
+| 优先级 | 模块 | 改造内容 | 收益 |
+|---|---|---|---|
+| **P0** | `MsgHandlerFromOtherLogic` | DB 回调协程化 | 代码可读性大幅提升 |
+| **P1** | `FSRoomBattleLogic` | AStar 分帧执行 | 防止卡顿 |
+| **P1** | `FSRoomLogic` | 玩家重连逻辑 | 更好的用户体验 |
+| **P2** | `PlayerLogic` | 登录流程串行化 | 简化逻辑 |
+| **P3** | `MapLogic` | 四叉树查询优化 | 性能提升 |
+
+---
+
+### 9. Worker VM 协程使用场景
+
+Worker VM 虽然主要用于客户端连接处理，但在以下场景可能需要协程：
+
+1. **异步连接验证** - 连接时需要调用外部服务验证
+2. **批量数据加载** - 玩家连接时加载大量配置数据
+3. **跨 VM 通信优化** - 减少回调嵌套
+
+**注意**：由于每个 Worker VM 有独立的 Lua 状态，协程状态也是独立的。需要在每个 Worker 实例中单独管理协程调度器。
+
+---
+
+### 7. 性能考量
+
+#### 协程开销
+
+| 操作 | 开销 |
+|------|------|
+| `coroutine.create()` | ~100 字节内存 |
+| `coroutine.resume()` | ~10-20 纳秒 |
+| `coroutine.yield()` | ~10-20 纳秒 |
+
+#### 最佳实践
+
+1. **短时操作 (< 1ms)** - 不需要协程
+2. **长时间操作 (> 10ms)** - 考虑分帧或协程
+3. **阻塞操作 (DB, Network)** - 强烈推荐协程
+
+---
+
+### 8. 未来扩展
+
+#### 计划中的协程特性
+
+1. **协程池** - 复用协程对象，减少 GC 压力
+2. **协程调试工具** - 查看挂起协程的状态
+3. **协程监控** - 统计协程数量、执行时间
+4. **协程间通信** - 通过 channel 传递数据
+
+#### 相关技术
+
+- **LuaJIT FFI** - 与协程配合进行高性能数据处理
+- **Protobuf 序列化** - 协程中进行异步序列化
+- **热重载兼容** - 协程状态在热重载时的处理
+
+---
