@@ -373,9 +373,9 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
             z = shooter.pos.z + dirZ * shootDist
         },
         dir = { x = dirX, y = dirY, z = dirZ },
-        lifeTime = 2000, -- 2秒存活时间
+        lifeTime = 1000, -- 1秒存活时间
         spawnTime = now,
-        speedRatio = 5000,
+        speedRatio = 10000,
         collisionRadius = self:GetBulletCollisionRadius(),
         isExpired = false
     }
@@ -476,7 +476,7 @@ function Map3D:UpdateBullets()
                 local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
 
                 -- 使用子弹的碰撞半径（考虑子弹大小）
-                if dist < (bullet.collisionRadius + 12) then -- 12是玩家默认半径
+                if dist < (bullet.collisionRadius + 40) then -- 40是扩大的碰撞半径，更容易击中
                     -- 击中玩家
                     Log:Error(
                         "Map3D UpdateBullets 子弹击中玩家 bulletId %s targetId %s dist %s collision %s",
