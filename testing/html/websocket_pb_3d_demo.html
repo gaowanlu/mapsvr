@@ -628,6 +628,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
 
         function handleHitPlayer(hitData) {
             log(`💥 击中玩家 ${hitData.targetId}，造成 ${hitData.damage} 点伤害`);
+            console.log(`💥 击中玩家 ${hitData.targetId}，造成 ${hitData.damage} 点伤害`);
             // 在击中位置显示特效
             createHitEffect(hitData.targetX, hitData.targetY, hitData.targetZ);
             // 不再清理子弹及其轨迹，保留所有历史轨迹
@@ -668,6 +669,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
             if (player) {
                 // 可以在这里添加受伤视觉效果
                 log(`⚠️ 玩家 ${hurtData.targetId} 受到 ${hurtData.damage} 点伤害，当前血量: ${hurtData.hp}/${hurtData.maxHp}`);
+                console.log(`⚠️ 玩家 ${hurtData.targetId} 受到 ${hurtData.damage} 点伤害，当前血量: ${hurtData.hp}/${hurtData.maxHp}`);
             }
         }
 
@@ -717,8 +719,8 @@ message ProtoCSMap3DNotifyPlayerHurt{
             log("发送注册账号请求");
         };
 
-        // 射击按钮事件
-        document.getElementById("shootBtn").onclick = () => {
+        // 射击功能
+        function shoot() {
             if (!selfId) return;
 
             // 获取玩家当前位置
@@ -750,7 +752,10 @@ message ProtoCSMap3DNotifyPlayerHurt{
                 Cmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT
             );
             log("🔫 发射子弹！");
-        };
+        }
+
+        // 射击按钮事件
+        document.getElementById("shootBtn").onclick = shoot;
 
         // ===================== Three.js =====================
         const scene = new THREE.Scene();
@@ -804,8 +809,21 @@ message ProtoCSMap3DNotifyPlayerHurt{
             pointerLockHint.style.display = 'block';
         }
 
+        // 射击冷却时间（毫秒）
+        let lastShootTime = 0;
+        const SHOOT_COOLDOWN = 200;
+
         renderer.domElement.addEventListener('click', () => {
-            renderer.domElement.requestPointerLock();
+            // 如果已锁定鼠标，执行射击；否则请求锁定
+            if (document.pointerLockElement === renderer.domElement) {
+                const now = Date.now();
+                if (now - lastShootTime > SHOOT_COOLDOWN) {
+                    shoot();
+                    lastShootTime = now;
+                }
+            } else {
+                renderer.domElement.requestPointerLock();
+            }
         });
 
         document.addEventListener('pointerlockchange', () => {

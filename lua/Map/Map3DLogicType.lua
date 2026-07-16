@@ -19,6 +19,7 @@
 ---@class Map3DPlayerType
 ---@field userId string 用户ID
 ---@field pos Vec3f 位置坐标
+---@field prevPos Vec3f 上一帧位置坐标
 ---@field v Vec3f 速度
 ---@field gravity integer 重力
 ---@field weight integer 重量
@@ -36,6 +37,7 @@
 ---@field bulletId string
 ---@field shooterId string
 ---@field pos Vec3f
+---@field prevPos Vec3f
 ---@field dir Vec3f
 ---@field lifeTime integer
 ---@field spawnTime integer

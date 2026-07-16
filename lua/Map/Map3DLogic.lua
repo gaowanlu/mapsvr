@@ -137,6 +137,7 @@ function Map3D:PlayerJoinMap(playerId, userId)
     local newMap3DPlayer = {
         userId = userId,
         pos = spawnPoint,
+        prevPos = spawnPoint, -- 上一帧位置，用于CCD碰撞检测
         v = { x = 0, y = 0, z = 0 },
         gravity = 1,
         weight = 1,
@@ -144,9 +145,9 @@ function Map3D:PlayerJoinMap(playerId, userId)
         lastClientTime = "0",
         dir = { x = 0, y = 0, z = 0 },
         speedRatio = 1000,
-        maxSpeed = 0.05, -- 最大速度 目标最大速度 px/ms 100px/s
-        accel = 1,       -- 加速度 px/ms^2
-        friction = 1.0,  -- 无摩擦
+        maxSpeed = 0.05,      -- 最大速度 目标最大速度 px/ms 100px/s
+        accel = 1,            -- 加速度 px/ms^2
+        friction = 1.0,       -- 无摩擦
         bodyRadius = 12,
         octree = nil
     }
@@ -289,6 +290,11 @@ function Map3D:PlayerPhysicsMove(mapPlayer)
         mapPlayer.v.z = targetVz
     end
 
+    -- 保存上一帧位置（用于CCD碰撞检测）
+    mapPlayer.prevPos.x = mapPlayer.pos.x
+    mapPlayer.prevPos.y = mapPlayer.pos.y
+    mapPlayer.prevPos.z = mapPlayer.pos.z
+
     -- 根据速度移动位置
     -- mapPlayer.pos.x / mapPlayer.pos.y / mapPlayer.pos.z 是坐标，速度 * DT_MS 是位移
     mapPlayer.pos.x = mapPlayer.pos.x + math.floor((mapPlayer.v.x * self:GetMapDbData().DT_MS) / mapPlayer.speedRatio)
@@ -339,8 +345,8 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
     -- 验证射击距离（服务器端二次验证）
     if shootDist < 0 or shootDist > self:GetMaxShootDist() then
         Log:Error(
-            "Map3D PlayerShoot 射击距离无效 shooterId %s shootDist %s max %s",
-            tostring(shooterId), tostring(shootDist), tostring(self:GetMaxShootDist())
+            "Map3D PlayerShoot 射击距离无效 shooterId %s shootDist %s max %s", tostring(shooterId),
+            tostring(shootDist), tostring(self:GetMaxShootDist())
         )
         return nil
     end
@@ -368,6 +374,11 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
         bulletId = bulletId,
         shooterId = shooterId,
         pos = {
+            x = shooter.pos.x + dirX * shootDist,
+            y = shooter.pos.y + dirY * shootDist,
+            z = shooter.pos.z + dirZ * shootDist
+        },
+        prevPos = { -- 上一帧位置，用于CCD碰撞检测
             x = shooter.pos.x + dirX * shootDist,
             y = shooter.pos.y + dirY * shootDist,
             z = shooter.pos.z + dirZ * shootDist
@@ -426,8 +437,8 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
         local player = PlayerMgr.GetPlayerByUserId(pl.userId)
         if player ~= nil then
             MsgHandler:Send2Client(
-                player:GetClientGID(), player:GetWorkerIdx(),
-                ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET, bulletPayload
+                player:GetClientGID(), player:GetWorkerIdx(), ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET,
+                bulletPayload
             )
         end
     end
@@ -457,6 +468,10 @@ function Map3D:UpdateBullets()
 
         -- 移动子弹
         local speed = bullet.speedRatio / 1000 * self:GetMapDbData().DT_MS
+        -- 保存上一帧位置用于CCD碰撞检测
+        bullet.prevPos.x = bullet.pos.x
+        bullet.prevPos.y = bullet.pos.y
+        bullet.prevPos.z = bullet.pos.z
         bullet.pos.x = bullet.pos.x + bullet.dir.x * speed
         bullet.pos.y = bullet.pos.y + bullet.dir.y * speed
         bullet.pos.z = bullet.pos.z + bullet.dir.z * speed
@@ -467,22 +482,24 @@ function Map3D:UpdateBullets()
         --     tostring(bullet.dir.y), tostring(bullet.dir.z), tostring(speed)
         -- )
 
-        -- 碰撞检测
+        -- 碰撞检测（使用CCD检测子弹运动轨迹与玩家的交叉）
         for userId, player in pairs(self.players) do
             if userId ~= bullet.shooterId then
-                local dx = player.pos.x - bullet.pos.x
-                local dy = player.pos.y - bullet.pos.y
-                local dz = player.pos.z - bullet.pos.z
-                local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-
-                -- 使用子弹的碰撞半径（考虑子弹大小）
-                if dist < (bullet.collisionRadius + 40) then -- 40是扩大的碰撞半径，更容易击中
+                -- 使用CCD碰撞检测：计算子弹轨迹线段到玩家位置的最近距离
+                local hit, hitRatio = self:CheckBulletPlayerCCD(bullet, player)
+                if hit then
+                    -- 计算实际击中位置（插值）
+                    local hitPos = {
+                        x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * hitRatio,
+                        y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * hitRatio,
+                        z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * hitRatio
+                    }
                     -- 击中玩家
                     Log:Error(
-                        "Map3D UpdateBullets 子弹击中玩家 bulletId %s targetId %s dist %s collision %s",
-                        bulletId, userId, tostring(dist), tostring(bullet.collisionRadius)
+                        "Map3D UpdateBullets 子弹击中玩家 bulletId %s targetId %s collisionRatio %s hitPos (%s,%s,%s)",
+                        bulletId, userId, tostring(hitRatio), tostring(hitPos.x), tostring(hitPos.y), tostring(hitPos.z)
                     )
-                    self:NotifyPlayerHit(bulletId, userId, bullet.pos)
+                    self:NotifyPlayerHit(bulletId, userId, hitPos)
                     bullet.isExpired = true
                     toRemove[#toRemove + 1] = bulletId
                     goto continue
@@ -539,10 +556,70 @@ function Map3D:UpdateBullets()
     end
 end
 
+--- CCD碰撞检测：计算子弹运动轨迹线段到玩家位置的最近距离
+--- 使用参数化直线距离公式：
+--- 子弹轨迹: B(t) = B0 + t * (B1 - B0), t∈[0,1]
+--- 玩家位置: P
+--- 最近点满足: (B(t) - P) · (B1 - B0) = 0
+---@param bullet Map3DBulletType 子弹对象
+---@param player Map3DPlayerType 玩家对象
+---@return boolean 是否碰撞
+---@return number 碰撞比例t （0-1），仅碰撞时返回
+function Map3D:CheckBulletPlayerCCD(bullet, player)
+    -- 子弹运动向量
+    local dx = bullet.pos.x - bullet.prevPos.x
+    local dy = bullet.pos.y - bullet.prevPos.y
+    local dz = bullet.pos.z - bullet.prevPos.z
+
+    -- 子弹起点到玩家的向量
+    local px = player.pos.x - bullet.prevPos.x
+    local py = player.pos.y - bullet.prevPos.y
+    local pz = player.pos.z - bullet.prevPos.z
+
+    -- 子弹运动向量的模平方
+    local dirLenSq = dx * dx + dy * dy + dz * dz
+    if dirLenSq < 0.0001 then
+        -- 子弹没动，退化为点到点距离检测
+        local dist = math.sqrt(px * px + py * py + pz * pz)
+        local collisionRadius = bullet.collisionRadius + player.bodyRadius
+        return dist < collisionRadius, 0
+    end
+
+    -- 参数t = (P - B0) · (B1 - B0) / |B1 - B0|²
+    local t = (px * dx + py * dy + pz * dz) / dirLenSq
+
+    -- 限制t在[0, 1]之间（只检测线段范围内）
+    t = math.max(0, math.min(1, t))
+
+    -- 最近点在子弹轨迹上的位置
+    local closestX = bullet.prevPos.x + t * dx
+    local closestY = bullet.prevPos.y + t * dy
+    local closestZ = bullet.prevPos.z + t * dz
+
+    -- 最近点到玩家的距离
+    local distX = player.pos.x - closestX
+    local distY = player.pos.y - closestY
+    local distZ = player.pos.z - closestZ
+    local dist = math.sqrt(distX * distX + distY * distY + distZ * distZ)
+
+    -- 碰撞检测：距离小于玩家半径 + 子弹半径
+    local collisionRadius = bullet.collisionRadius + player.bodyRadius
+    if dist < collisionRadius then
+        return true, t
+    end
+
+    -- 也可以用扩大的碰撞盒提高手感
+    if dist < (collisionRadius + 20) then
+        return true, t
+    end
+
+    return false, 0
+end
+
 -- 通知玩家被击中
 ---@param bulletId string 子弹ID
 ---@param targetId string 被击中玩家的userId
----@param pos      Vec3f 子弹位置
+---@param pos      Vec3f  子弹位置
 function Map3D:NotifyPlayerHit(bulletId, targetId, pos)
     local MsgHandler = require("MsgHandlerLogic")
     local PlayerMgr = require("PlayerMgrLogic")
