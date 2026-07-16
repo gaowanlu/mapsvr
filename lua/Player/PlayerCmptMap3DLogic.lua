@@ -139,4 +139,27 @@ function PlayerCmptMap3D:MapInputReq(message)
     currMap:MapPlayerInput(self:GetPlayer():GetUserId(), dirX, dirY, dirZ, seq, clientTime);
 end
 
+---@param message ProtoLua_ProtoCSReqMap3DShoot
+function PlayerCmptMap3D:MapShootReq(message)
+    -- 如果目前没有加入任何地图则直接拒绝处理
+    if false == self:HasInMap() then
+        return;
+    end
+
+    ---@type Map3D
+    local currMap = Map3DMgr.GetMap(self.nowMapId);
+    if currMap == nil then
+        return;
+    end
+
+    currMap:PlayerShoot(
+        self:GetPlayer():GetUserId(),
+        message.dirX,
+        message.dirY,
+        message.dirZ,
+        message.shootDist,
+        message.clientTime
+    );
+end
+
 return PlayerCmptMap3D;

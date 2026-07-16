@@ -203,3 +203,65 @@ message ProtoCSResCreateUser
     string password=3;
     uint64 userRecordID=4;
 }
+
+// Map3D射击请求
+// PROTO_CMD_CS_REQ_MAP3D_SHOOT
+message ProtoCSReqMap3DShoot
+{
+  string shooterId=1;
+  int32 dirX=2;   // 子弹方向向量X分量（由客户端计算并归一化）
+  int32 dirY=3;   // 子弹方向向量Y分量
+  int32 dirZ=4;   // 子弹方向向量Z分量
+  int32 shootDist=5;  // 射击距离（像素单位）
+  uint64 clientTime=6;
+}
+
+// Map3D射击返回
+// PROTO_CMD_CS_RES_MAP3D_SHOOT
+message ProtoCSResMap3DShoot
+{
+  int32 ret=1;
+  int32 damage=2;
+}
+
+// Map3D子弹状态同步
+// PROTO_CMD_CS_MAP3D_NOTIFY_BULLET
+message ProtoCSMap3DNotifyBullet
+{
+  string bulletId=1;
+  string shooterId=2;
+  int32 x=3;
+  int32 y=4;
+  int32 z=5;
+  int32 dirX=6;
+  int32 dirY=7;
+  int32 dirZ=8;
+  uint64 lifeTime=9;
+  uint64 spawnTime=10;
+}
+
+// Map3D击中玩家通知
+// PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER
+message ProtoCSMap3DNotifyHitPlayer
+{
+  string bulletId=1;
+  string targetId=2;
+  int32 damage=3;
+  int32 targetX=4;
+  int32 targetY=5;
+  int32 targetZ=6;
+}
+
+// Map3D玩家受伤通知
+// PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT
+message ProtoCSMap3DNotifyPlayerHurt
+{
+  string targetId=1;
+  int32 hp=2;
+  int32 maxHp=3;
+  int32 damage=4;
+  int32 x=5;
+  int32 y=6;
+  int32 z=7;
+}
+

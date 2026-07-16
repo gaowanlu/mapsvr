@@ -2,6 +2,8 @@
 
 ---@class MsgHandler:MsgHandlerType
 local MsgHandler = require("MsgHandlerData");
+local Debug = require("DebugLogic");
+local Log = require("Log");
 
 --- 发送协议到客户端
 ---@param clientGID string 客户端连接gid
@@ -9,6 +11,7 @@ local MsgHandler = require("MsgHandlerData");
 ---@param cmd number 协议号
 ---@param message table protobufMessage
 function MsgHandler:Send2Client(clientGID, workerIdx, cmd, message)
+    -- Log:Error(Debug.DebugTableToString(message, "MsgHandler:Send2Client cmd=" .. tostring(cmd) .. " clientGID=" .. tostring(clientGID) .. " workerIdx=" .. tostring(workerIdx)));
     avant.Lua2Protobuf(message, ProtoLua_ProtoLuaVMMsgType.PROTO_LUA_VM_MSG_TYPE_CLIENT, cmd, clientGID, workerIdx, "");
 end
 

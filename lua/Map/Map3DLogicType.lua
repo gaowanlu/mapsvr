@@ -32,7 +32,20 @@
 ---@field bodyRadius number 角色碰撞半径
 ---@field map3DOctree Map3DOctree|nil 所在地图八叉树节点
 
+---@class Map3DBulletType
+---@field bulletId string
+---@field shooterId string
+---@field pos Vec3f
+---@field dir Vec3f
+---@field lifeTime integer
+---@field spawnTime integer
+---@field speedRatio integer
+---@field isExpired boolean
+---@field collisionRadius integer
+
 ---@class Map3DType
 ---@field MapDbData Map3DDbDataType
 ---@field players table<string,Map3DPlayerType>
 ---@field map3DOctree Map3DOctree 八叉树
+---@field bullets table<string,Map3DBulletType>
+---@field nextBulletIdSeq integer 下一发子弹IDSeq

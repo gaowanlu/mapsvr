@@ -81,6 +81,17 @@ enum ProtoCmd
     // Map3D离开地图返回
     PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
 
+    // Map3D射击请求
+    PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021;
+    // Map3D射击返回
+    PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
+    // Map3D子弹状态同步
+    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023;
+    // Map3D击中玩家通知
+    PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
+    // Map3D玩家受伤通知
+    PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
+
     // 写dbuserreocord表数据
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;
     // 检索dbuserrecord表请求

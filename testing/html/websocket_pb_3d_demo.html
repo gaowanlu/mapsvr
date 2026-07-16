@@ -47,6 +47,16 @@
             background: #0f2540;
         }
 
+        #shootBtn {
+            background: #e63946;
+            border: 1px solid #ff6b6b;
+            font-weight: bold;
+        }
+
+        #shootBtn:hover {
+            background: #d62839;
+        }
+
         pre {
             margin-top: 8px;
             font-size: 11px;
@@ -128,6 +138,7 @@
         <button id="btnLogin">登录</button>
         <button id="btnEnter">进入3D地图</button>
         <button id="btnCreateUser">注册账号</button>
+        <button id="shootBtn" style="display:none;">🔫 射击 (点击)</button>
         <pre id="log">未连接</pre>
     </div>
 
@@ -232,6 +243,17 @@ enum ProtoCmd{
     // Map3D离开地图返回
     PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
 
+    // Map3D射击请求
+    PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021;
+    // Map3D射击返回
+    PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
+    // Map3D子弹状态同步
+    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023;
+    // Map3D击中玩家通知
+    PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
+    // Map3D玩家受伤通知
+    PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
+
     // 写dbuserreocord表数据
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;
     // 检索dbuserrecord表请求
@@ -306,6 +328,61 @@ message ProtoCSResCreateUser
     string password=3;
     uint64 userRecordID=4;
 }
+
+
+
+// Map3D射击请求
+message ProtoCSReqMap3DShoot{
+  string shooterId=1;
+  int32 dirX=2;   // 子弹方向向量X分量（客户端计算并归一化）
+  int32 dirY=3;   // 子弹方向向量Y分量
+  int32 dirZ=4;   // 子弹方向向量Z分量
+  int32 shootDist=5;  // 射击距离（像素单位）
+  uint64 clientTime=6;
+}
+
+// Map3D射击返回
+message ProtoCSResMap3DShoot{
+  int32 ret=1;
+  int32 damage=2;
+}
+
+// Map3D子弹状态同步
+message ProtoCSMap3DNotifyBullet{
+  string bulletId=1;
+  string shooterId=2;
+  int32 x=3;
+  int32 y=4;
+  int32 z=5;
+  int32 dirX=6;
+  int32 dirY=7;
+  int32 dirZ=8;
+  uint64 lifeTime=9;
+  uint64 spawnTime=10;
+}
+
+// Map3D击中玩家通知
+message ProtoCSMap3DNotifyHitPlayer{
+  string bulletId=1;
+  string targetId=2;
+  int32 damage=3;
+  int32 targetX=4;
+  int32 targetY=5;
+  int32 targetZ=6;
+}
+
+// Map3D玩家受伤通知
+message ProtoCSMap3DNotifyPlayerHurt{
+  string targetId=1;
+  int32 hp=2;
+  int32 maxHp=3;
+  int32 damage=4;
+  int32 x=5;
+  int32 y=6;
+  int32 z=7;
+}
+
+
 `;
 
         const root = protobuf.parse(protoText).root;
@@ -318,7 +395,19 @@ message ProtoCSResCreateUser
         const T_Enter = root.lookupType("avant.ProtoCSMap3DEnterReq");
         const T_ProtoCSReqCreateUser = root.lookupType("avant.ProtoCSReqCreateUser");
         const T_ProtoCSResCreateUser = root.lookupType("avant.ProtoCSResCreateUser");
+        const T_Shoot = root.lookupType("avant.ProtoCSReqMap3DShoot");
+        const T_ShootRes = root.lookupType("avant.ProtoCSResMap3DShoot");
+        const SHOOT_DIST = 50; // 射击距离（像素单位）
 
+        const T_ProtoCSMap3DNotifyBullet = root.lookupType("avant.ProtoCSMap3DNotifyBullet");
+        const T_ProtoCSMap3DNotifyHitPlayer = root.lookupType("avant.ProtoCSMap3DNotifyHitPlayer");
+        const T_ProtoCSMap3DNotifyPlayerHurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt")
+
+        // ===================== Map State =====================
+        const players = new Map();
+        const bullets = new Map();
+        let selfId = null;
+        let lastSeq = 0;
 
         // ===================== UI / Log =====================
         const logEl = document.getElementById("log");
@@ -329,11 +418,6 @@ message ProtoCSResCreateUser
                 logEl.textContent = "";
             }
         }
-
-        // ===================== Map State =====================
-        const players = new Map();
-        let selfId = null;
-        let lastSeq = 0;
 
         // ===================== WebSocket =====================
         let ws = null;
@@ -384,6 +468,7 @@ message ProtoCSResCreateUser
                 case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES:
                     log("✓ 进入3D地图成功");
                     showPointerLockHint();
+                    document.getElementById("shootBtn").style.display = "inline-block";
                     break;
                 case Cmd.PROTO_CMD_CS_RES_CREATE_USER:
                     try {
@@ -392,8 +477,197 @@ message ProtoCSResCreateUser
                         log(`PROTO_CMD_CS_RES_CREATE_USER ${JSON.stringify(createUserObj)}`);
                     } catch (e) { log('decode login err', e.message); }
                     break;
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET:
+                    const bulletData = T_ProtoCSMap3DNotifyBullet.decode(msg.protocol);
+                    handleBullet(bulletData);
+                    break;
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER:
+                    const hitData = T_ProtoCSMap3DNotifyHitPlayer.decode(msg.protocol);
+                    handleHitPlayer(hitData);
+                    break;
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT:
+                    const hurtData = T_ProtoCSMap3DNotifyPlayerHurt.decode(msg.protocol);
+                    handlePlayerHurt(hurtData);
+                    break;
+                case Cmd.PROTO_CMD_CS_RES_MAP3D_SHOOT:
+                    const shootRes = T_ShootRes.decode(msg.protocol);
+                    log(`🔫 射击返回: ${JSON.stringify(T_ShootRes.toObject(shootRes, { longs: String }))}`);
+                    break;
                 default:
                     log("未处理协议:", msg.cmd);
+            }
+        }
+
+        // ===================== Bullet Management =====================
+        function createBulletMesh(isNew) {
+            const geometry = new THREE.SphereGeometry(0.5, 8, 8);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xffff00,
+                transparent: true,
+                opacity: isNew ? 1 : 0.7
+            });
+            const m = new THREE.Mesh(geometry, material);
+            m.userData.arrowHelper = null;
+            m.userData.trailLine = null;
+            m.userData.trailPoints = [];
+            scene.add(m);
+            return m;
+        }
+
+        function handleBullet(bulletData) {
+            console.log("收到子弹数据:", bulletData);
+            let bullet = bullets.get(bulletData.bulletId);
+            if (!bullet) {
+                bullet = createBulletMesh(true);
+                bullets.set(bulletData.bulletId, bullet);
+            }
+
+            // 将绝对坐标转换为 Three.js 场景坐标
+            // 服务器发送的是绝对坐标 (bulletData.x/y/z)，需要转换
+            const position = new THREE.Vector3(bulletData.x, bulletData.y, bulletData.z);
+            bullet.position.copy(position);
+
+            // 保存子弹生成时间（用于清理）
+            bullet.userData.spawnTime = bulletData.spawnTime || Date.now();
+
+            // 计算子弹方向向量（用于可视化）
+            const dirLen = Math.sqrt(bulletData.dirX * bulletData.dirX +
+                                    bulletData.dirY * bulletData.dirY +
+                                    bulletData.dirZ * bulletData.dirZ);
+            if (dirLen > 0.0001) {
+                // 显示方向指示线
+                if (!bullet.userData.arrowHelper) {
+                    const dir = new THREE.Vector3(
+                        bulletData.dirX / dirLen,
+                        bulletData.dirY / dirLen,
+                        bulletData.dirZ / dirLen
+                    );
+                    bullet.userData.arrowHelper = new THREE.ArrowHelper(
+                        dir,
+                        bullet.position,
+                        10,
+                        0xffff00
+                    );
+                    scene.add(bullet.userData.arrowHelper);
+                } else {
+                    bullet.userData.arrowHelper.position.copy(bullet.position);
+                    bullet.userData.arrowHelper.setDirection(new THREE.Vector3(
+                        bulletData.dirX / dirLen,
+                        bulletData.dirY / dirLen,
+                        bulletData.dirZ / dirLen
+                    ));
+                }
+            }
+
+            // 更新子弹轨迹线
+            updateBulletTrail(bullet, position);
+        }
+
+        function updateBulletTrail(bullet, position) {
+            // 保存轨迹点
+            bullet.userData.trailPoints.push(position.clone());
+
+            // 不限制轨迹点的数量，保留所有历史轨迹
+            // const maxTrailPoints = 50;
+            // if (bullet.userData.trailPoints.length > maxTrailPoints) {
+            //     bullet.userData.trailPoints.shift();
+            // }
+
+            // 创建或更新轨迹线
+            if (bullet.userData.trailPoints.length < 2) {
+                // 点数不足，不需要显示轨迹
+                if (bullet.userData.trailLine) {
+                    scene.remove(bullet.userData.trailLine);
+                    bullet.userData.trailLine = null;
+                }
+                return;
+            }
+
+            if (!bullet.userData.trailLine) {
+                // 创建新的轨迹线
+                const geometry = new THREE.BufferGeometry().setFromPoints(
+                    bullet.userData.trailPoints
+                );
+                const material = new THREE.LineBasicMaterial({
+                    color: 0x00ff00,
+                    transparent: true,
+                    opacity: 0.6,
+                    linewidth: 3  // 增加线宽（WebGL 中可能不生效，但设置一下）
+                });
+                bullet.userData.trailLine = new THREE.Line(geometry, material);
+                scene.add(bullet.userData.trailLine);
+            } else {
+                // 更新现有轨迹线的顶点
+                bullet.userData.trailLine.geometry.setFromPoints(
+                    bullet.userData.trailPoints
+                );
+                bullet.userData.trailLine.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+
+        function cleanupBullet(bulletId) {
+            const bullet = bullets.get(bulletId);
+            if (!bullet) return;
+
+            // 移除轨迹线
+            if (bullet.userData.trailLine) {
+                scene.remove(bullet.userData.trailLine);
+                bullet.userData.trailLine = null;
+            }
+
+            // 移除方向指示线
+            if (bullet.userData.arrowHelper) {
+                scene.remove(bullet.userData.arrowHelper);
+                bullet.userData.arrowHelper = null;
+            }
+
+            // 移除子弹网格
+            scene.remove(bullet);
+            bullets.delete(bulletId);
+        }
+
+        function handleHitPlayer(hitData) {
+            log(`💥 击中玩家 ${hitData.targetId}，造成 ${hitData.damage} 点伤害`);
+            // 在击中位置显示特效
+            createHitEffect(hitData.targetX, hitData.targetY, hitData.targetZ);
+            // 不再清理子弹及其轨迹，保留所有历史轨迹
+            // cleanupBullet(hitData.bulletId);
+        }
+
+        function createHitEffect(x, y, z) {
+            // 创建简单的爆炸效果
+            const geometry = new THREE.RingGeometry(0.5, 2, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.8
+            });
+            const ring = new THREE.Mesh(geometry, material);
+            ring.position.set(x, y, z);
+            ring.lookAt(0, 1, 0);
+            scene.add(ring);
+
+            // 简单的淡出动画
+            let opacity = 0.8;
+            const animate = () => {
+                opacity -= 0.05;
+                ring.material.opacity = opacity;
+                ring.scale.multiplyScalar(1.1);
+                if (opacity > 0) {
+                    requestAnimationFrame(animate);
+                } else {
+                    scene.remove(ring);
+                }
+            };
+            animate();
+        }
+
+        function handlePlayerHurt(hurtData) {
+            const player = players.get(hurtData.targetId);
+            if (player) {
+                // 可以在这里添加受伤视觉效果
+                log(`⚠️ 玩家 ${hurtData.targetId} 受到 ${hurtData.damage} 点伤害，当前血量: ${hurtData.hp}/${hurtData.maxHp}`);
             }
         }
 
@@ -441,6 +715,41 @@ message ProtoCSResCreateUser
                 Cmd.PROTO_CMD_CS_REQ_CREATE_USER
             );
             log("发送注册账号请求");
+        };
+
+        // 射击按钮事件
+        document.getElementById("shootBtn").onclick = () => {
+            if (!selfId) return;
+
+            // 获取玩家当前位置
+            const self = players.get(selfId);
+            if (!self) return;
+
+            // 获取相机的前方向量（包含 yaw 和 pitch）
+            const cameraDir = new THREE.Vector3();
+            camera.getWorldDirection(cameraDir);
+
+            // 转换为整数精度
+            const dirXn = Math.round(cameraDir.x * 10000);
+            const dirYn = Math.round(cameraDir.y * 10000);
+            const dirZn = Math.round(cameraDir.z * 10000);
+
+            log(`射击方向: (${dirXn}, ${dirYn}, ${dirZn})`);
+
+            // 发送射击请求（发送方向向量和射击距离）
+            sendInner(
+                T_Shoot,
+                {
+                    shooterId: selfId,
+                    dirX: dirXn,
+                    dirY: dirYn,
+                    dirZ: dirZn,
+                    shootDist: SHOOT_DIST,
+                    clientTime: Date.now()
+                },
+                Cmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT
+            );
+            log("🔫 发射子弹！");
         };
 
         // ===================== Three.js =====================
@@ -612,6 +921,8 @@ message ProtoCSResCreateUser
         }, 80);
 
         // ===================== Render Loop =====================
+        // 移除子弹清理逻辑，保留所有历史轨迹
+
         function animate() {
             requestAnimationFrame(animate);
 

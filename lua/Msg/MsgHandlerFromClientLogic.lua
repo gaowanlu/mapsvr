@@ -278,6 +278,27 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_LEAVE_REQ] = function 
     MsgHandler:Send2Client(clientGID, workerIdx, ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_LEAVE_RES, res)
 end
 
+--- PROTO_CMD_CS_REQ_MAP3D_SHOOT 3D地图射击请求
+---@param message ProtoLua_ProtoCSReqMap3DShoot
+MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT] = function (
+    playerId, clientGID, workerIdx, cmd, message
+)
+    local player = PlayerMgr.GetPlayerByPlayerId(playerId)
+    if player == nil then
+        return
+    end
+
+    player:GetComponents().map3d:MapShootReq(message)
+
+    ---@type ProtoLua_ProtoCSResMap3DShoot
+    local res = {
+        ret = 0,
+        damage = 100
+    }
+
+    MsgHandler:Send2Client(clientGID, workerIdx, ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_MAP3D_SHOOT, res)
+end
+
 ---@param message ProtoLua_ProtoCSReqCreateUser
 MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_CREATE_USER] = function (
     playerId, clientGID, workerIdx, cmd, message

@@ -26,10 +26,29 @@ function Map3D.new(mapId)
     ---@type table<string, Map3DPlayerType>
     self.players = {}
 
+    -- 子弹管理
+    ---@type table<string, Map3DBulletType>
+    self.bullets = {}
+
     -- 八叉树
     self.map3DOctree = Map3DOctree.new(0, 0, 0, self:GetSize().x, self:GetSize().y, self:GetSize().z, 0)
 
+    self.nextBulletIdSeq = 0
+
     return self
+end
+
+-- 获取最大射击距离（单位：px）
+---@return integer
+function Map3D:GetMaxShootDist()
+    return 5000
+end
+
+-- 获取子弹碰撞半径（单位：px），默认为8
+---@param bulletType string | nil 子弹类型（未来可用于不同武器）
+---@return integer
+function Map3D:GetBulletCollisionRadius(bulletType)
+    return 8
 end
 
 ---@return Map3DDbDataType
@@ -56,6 +75,12 @@ end
 ---@return Map3DPlayerType | nil
 function Map3D:GetMapPlayerByUserId(userId)
     return self.players[userId]
+end
+
+---@param playerId string
+---@return Map3DPlayerType | nil
+function Map3D:GetMapPlayerByPlayerId(playerId)
+    return self.players[playerId]
 end
 
 function Map3D:OnTick()
@@ -297,6 +322,268 @@ function Map3D:PlayerPhysicsMove(mapPlayer)
     Map3DOctree.OcInsert(self.map3DOctree, mapPlayer)
 end
 
+-- 玩家射击
+---@param shooterId  string 发射子弹的玩家的playerId
+---@param dirX       number 子弹方向向量X分量（客户端已归一化）
+---@param dirY       number 子弹方向向量Y分量
+---@param dirZ       number 子弹方向向量Z分量
+---@param shootDist  number 射击距离（像素单位）
+---@param clientTime string 客户端射击时间
+---@return string | nil 返回子弹ID ，如果射击失败返回nil
+function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
+    local shooter = self:GetMapPlayerByPlayerId(shooterId)
+    if shooter == nil then
+        return nil
+    end
+
+    -- 验证射击距离（服务器端二次验证）
+    if shootDist < 0 or shootDist > self:GetMaxShootDist() then
+        Log:Error(
+            "Map3D PlayerShoot 射击距离无效 shooterId %s shootDist %s max %s",
+            tostring(shooterId), tostring(shootDist), tostring(self:GetMaxShootDist())
+        )
+        return nil
+    end
+
+    -- 服务器验证并归一化方向向量
+    local len = math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ)
+    if len > 0.0001 then
+        -- 使用客户端的方向向量，但确保其方向正确
+        dirX = dirX / len
+        dirY = dirY / len
+        dirZ = dirZ / len
+    else
+        Log:Error("Map3D PlayerShoot 方向向量无效 shooterId %s", tostring(shooterId))
+        return nil
+    end
+
+    -- 创建子弹
+    self.nextBulletIdSeq = self.nextBulletIdSeq + 1
+    local bulletId = tostring(self.nextBulletIdSeq) -- 使用唯一ID
+    local now = TimeMgr.GetMS()
+
+    -- 子弹初始位置：从玩家位置出发，沿方向向量移动 shootDist 距离
+    ---@type Map3DBulletType
+    local newBullet = {
+        bulletId = bulletId,
+        shooterId = shooterId,
+        pos = {
+            x = shooter.pos.x + dirX * shootDist,
+            y = shooter.pos.y + dirY * shootDist,
+            z = shooter.pos.z + dirZ * shootDist
+        },
+        dir = { x = dirX, y = dirY, z = dirZ },
+        lifeTime = 2000, -- 2秒存活时间
+        spawnTime = now,
+        speedRatio = 5000,
+        collisionRadius = self:GetBulletCollisionRadius(),
+        isExpired = false
+    }
+
+    -- Log:Error(
+    --     "创建子弹 Map3D PlayerShoot shooterId %s bulletId %s pos (%s,%s,%s) dir (%s,%s,%s) shootDist %s spawnTime %s",
+    --     tostring(shooterId), tostring(bulletId), tostring(newBullet.pos.x), tostring(newBullet.pos.y),
+    --     tostring(newBullet.pos.z), tostring(newBullet.dir.x), tostring(newBullet.dir.y),
+    --     tostring(newBullet.dir.z), tostring(shootDist), tostring(now)
+    -- )
+
+    self.bullets[bulletId] = newBullet
+
+    -- 立即广播子弹给周围所有玩家（避免延迟）
+    local MsgHandler = require("MsgHandlerLogic")
+    local PlayerMgr = require("PlayerMgrLogic")
+    local shooterPlayer = PlayerMgr.GetPlayerByUserId(shooterId)
+
+    -- 查询子弹初始位置周围的玩家
+    local range = {
+        x = newBullet.pos.x - 50000,
+        y = newBullet.pos.y - 50000,
+        z = newBullet.pos.z - 50000,
+        w = 100000,
+        h = 100000,
+        d = 100000
+    }
+    local list = {}
+    local seen = {}
+    Map3DOctree.OcQuery(self.map3DOctree, range, list, seen)
+
+    ---@type ProtoLua_ProtoCSMap3DNotifyBullet
+    local bulletPayload = {
+        bulletId = bulletId,
+        shooterId = shooterId,
+        x = math.floor(newBullet.pos.x),
+        y = math.floor(newBullet.pos.y),
+        z = math.floor(newBullet.pos.z),
+        dirX = math.floor(newBullet.dir.x),
+        dirY = math.floor(newBullet.dir.y),
+        dirZ = math.floor(newBullet.dir.z),
+        lifeTime = "2000",
+        spawnTime = tostring(now)
+    }
+
+    -- 向所有周围玩家广播子弹（包括射击者）
+    for _, pl in pairs(list) do
+        local player = PlayerMgr.GetPlayerByUserId(pl.userId)
+        if player ~= nil then
+            MsgHandler:Send2Client(
+                player:GetClientGID(), player:GetWorkerIdx(),
+                ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET, bulletPayload
+            )
+        end
+    end
+
+    return bulletId
+end
+
+-- 更新子弹
+function Map3D:UpdateBullets()
+    local timeMS = TimeMgr.GetMS()
+    local MsgHandler = require("MsgHandlerLogic")
+    local PlayerMgr = require("PlayerMgrLogic")
+    local toRemove = {}
+
+    for bulletId, bullet in pairs(self.bullets) do
+        if bullet.isExpired then
+            toRemove[#toRemove + 1] = bulletId
+            goto continue
+        end
+
+        -- 检查子弹是否过期
+        if timeMS - bullet.spawnTime > bullet.lifeTime then
+            bullet.isExpired = true
+            toRemove[#toRemove + 1] = bulletId
+            goto continue
+        end
+
+        -- 移动子弹
+        local speed = bullet.speedRatio / 1000 * self:GetMapDbData().DT_MS
+        bullet.pos.x = bullet.pos.x + bullet.dir.x * speed
+        bullet.pos.y = bullet.pos.y + bullet.dir.y * speed
+        bullet.pos.z = bullet.pos.z + bullet.dir.z * speed
+
+        -- Log:Error(
+        --     "子弹移动 Map3D UpdateBullets bulletId %s pos (%s,%s,%s) dir (%s,%s,%s) speed %s", tostring(bulletId),
+        --     tostring(bullet.pos.x), tostring(bullet.pos.y), tostring(bullet.pos.z), tostring(bullet.dir.x),
+        --     tostring(bullet.dir.y), tostring(bullet.dir.z), tostring(speed)
+        -- )
+
+        -- 碰撞检测
+        for userId, player in pairs(self.players) do
+            if userId ~= bullet.shooterId then
+                local dx = player.pos.x - bullet.pos.x
+                local dy = player.pos.y - bullet.pos.y
+                local dz = player.pos.z - bullet.pos.z
+                local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+
+                -- 使用子弹的碰撞半径（考虑子弹大小）
+                if dist < (bullet.collisionRadius + 12) then -- 12是玩家默认半径
+                    -- 击中玩家
+                    Log:Error(
+                        "Map3D UpdateBullets 子弹击中玩家 bulletId %s targetId %s dist %s collision %s",
+                        bulletId, userId, tostring(dist), tostring(bullet.collisionRadius)
+                    )
+                    self:NotifyPlayerHit(bulletId, userId, bullet.pos)
+                    bullet.isExpired = true
+                    toRemove[#toRemove + 1] = bulletId
+                    goto continue
+                end
+            end
+        end
+
+        -- 通知所有玩家子弹位置
+        local range = {
+            x = bullet.pos.x - 50000,
+            y = bullet.pos.y - 50000,
+            z = bullet.pos.z - 50000,
+            w = 100000,
+            h = 100000,
+            d = 100000
+        }
+        local list = {}
+        local seen = {}
+        -- 查询子弹位置所在周围一定范围内的玩家
+        Map3DOctree.OcQuery(self.map3DOctree, range, list, seen)
+
+        if #list ~= 0 then
+            ---@type ProtoLua_ProtoCSMap3DNotifyBullet
+            local playersPayload = {
+                bulletId = bulletId,
+                shooterId = bullet.shooterId,
+                x = math.floor(bullet.pos.x),
+                y = math.floor(bullet.pos.y),
+                z = math.floor(bullet.pos.z),
+                dirX = math.floor(bullet.dir.x),
+                dirY = math.floor(bullet.dir.y),
+                dirZ = math.floor(bullet.dir.z),
+                lifeTime = tostring(bullet.lifeTime - (timeMS - bullet.spawnTime)),
+                spawnTime = tostring(bullet.spawnTime)
+            }
+
+            for userId, pl in pairs(list) do
+                local player = PlayerMgr.GetPlayerByUserId(pl.userId)
+                if player ~= nil then
+                    MsgHandler:Send2Client(
+                        player:GetClientGID(), player:GetWorkerIdx(), ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET,
+                        playersPayload
+                    )
+                end
+            end
+        end
+
+        ::continue::
+    end
+
+    -- 移除过期子弹
+    for _, bulletId in ipairs(toRemove) do
+        self.bullets[bulletId] = nil
+    end
+end
+
+-- 通知玩家被击中
+---@param bulletId string 子弹ID
+---@param targetId string 被击中玩家的userId
+---@param pos      Vec3f 子弹位置
+function Map3D:NotifyPlayerHit(bulletId, targetId, pos)
+    local MsgHandler = require("MsgHandlerLogic")
+    local PlayerMgr = require("PlayerMgrLogic")
+
+    local targetPlayer = PlayerMgr.GetPlayerByUserId(targetId)
+    if targetPlayer == nil then
+        return
+    end
+
+    -- 发送击中通知
+    ---@type ProtoLua_ProtoCSMap3DNotifyHitPlayer
+    local hitProto = {
+        bulletId = bulletId,
+        targetId = targetId,
+        damage = 100, -- 伤害值
+        targetX = math.floor(pos.x),
+        targetY = math.floor(pos.y),
+        targetZ = math.floor(pos.z)
+    }
+    MsgHandler:Send2Client(
+        targetPlayer:GetClientGID(), targetPlayer:GetWorkerIdx(), ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER,
+        hitProto
+    )
+
+    -- 发送受伤通知（包含新血量）
+    ---@type ProtoLua_ProtoCSMap3DNotifyPlayerHurt
+    local hurtProto = {
+        targetId = targetId,
+        hp = 90,     -- 伤害100，血量90
+        maxHp = 200, -- 最大血量
+        damage = 100,
+        x = math.floor(pos.x),
+        y = math.floor(pos.y),
+        z = math.floor(pos.z)
+    }
+    MsgHandler:Send2Client(
+        targetPlayer:GetClientGID(), targetPlayer:GetWorkerIdx(),
+        ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT, hurtProto
+    )
+end
+
 ---@param timeMS integer
 function Map3D:FixedUpdate(timeMS)
     local MsgHandler = require("MsgHandlerLogic")
@@ -306,6 +593,9 @@ function Map3D:FixedUpdate(timeMS)
     for userId, mapPlayer in pairs(self.players) do
         self:PlayerPhysicsMove(mapPlayer)
     end
+
+    -- 更新子弹
+    self:UpdateBullets()
 
     -- 为地图中每个玩家同步状态 PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA
     for userId, mapPlayer in pairs(self.players) do
