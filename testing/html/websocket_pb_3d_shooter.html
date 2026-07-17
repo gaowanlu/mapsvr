@@ -1,0 +1,1203 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <title>AVANT — 3D FPS 客户端 (修复版 + 坐标面板 + Y=500000 地面)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #050b16;
+            color: #e6edf3;
+            font-family: system-ui, -apple-system, "Microsoft YaHei";
+            user-select: none;
+        }
+
+        #ui {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            width: 300px;
+            background: rgba(5, 15, 30, .85);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 100;
+        }
+
+        input,
+        button {
+            width: 100%;
+            margin-top: 6px;
+            padding: 7px;
+            background: #0b1a2c;
+            border: 1px solid rgba(255, 255, 255, .08);
+            color: #e6edf3;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        button {
+            cursor: pointer;
+            letter-spacing: .5px;
+        }
+
+        button:hover {
+            background: #0f2540;
+        }
+
+        #btnEnter {
+            background: #1b6b3a;
+            border-color: #2eaa5a;
+        }
+
+        #btnEnter:hover {
+            background: #238a4a;
+        }
+
+        #btnCreateUser {
+            background: #3a3f6b;
+            border-color: #5a60aa;
+        }
+
+        pre {
+            margin-top: 8px;
+            font-size: 11px;
+            max-height: 150px;
+            overflow: auto;
+            background: #020814;
+            padding: 6px;
+            border-radius: 4px;
+        }
+
+        #hud {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 22px;
+            height: 22px;
+            pointer-events: none;
+        }
+
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 80, 80, .9);
+        }
+
+        #crosshair::before {
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            transform: translateX(-50%);
+        }
+
+        #crosshair::after {
+            top: 50%;
+            left: 0;
+            height: 2px;
+            width: 100%;
+            transform: translateY(-50%);
+        }
+
+        #crosshair .dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: #ff5050;
+            transform: translate(-50%, -50%);
+        }
+
+        #hpwrap {
+            position: fixed;
+            bottom: 18px;
+            left: 18px;
+            width: 260px;
+        }
+
+        #hpbar {
+            height: 14px;
+            background: rgba(0, 0, 0, .5);
+            border: 1px solid rgba(255, 255, 255, .2);
+            border-radius: 7px;
+            overflow: hidden;
+        }
+
+        #hpfill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #e63946, #ff8a5b);
+            transition: width .2s;
+        }
+
+        #hptext {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 3px;
+        }
+
+        #killfeed {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            width: 280px;
+            text-align: right;
+            font-size: 12px;
+        }
+
+        #killfeed div {
+            background: rgba(0, 0, 0, .5);
+            padding: 5px 9px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            border-left: 3px solid #e63946;
+            animation: fade 4s forwards;
+        }
+
+        @keyframes fade {
+
+            0%,
+            70% {
+                opacity: 1
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        #stats {
+            position: fixed;
+            bottom: 18px;
+            right: 18px;
+            text-align: right;
+            font-size: 12px;
+            background: rgba(0, 0, 0, .4);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, .08);
+        }
+
+        #hint {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(5, 15, 30, .85);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+
+        #blocker {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        #blocker .card {
+            background: rgba(5, 15, 30, .95);
+            border: 2px solid rgba(255, 255, 255, .15);
+            border-radius: 14px;
+            padding: 34px 50px;
+            text-align: center;
+        }
+
+        #blocker h1 {
+            margin: 0 0 6px;
+            font-size: 26px;
+            letter-spacing: 2px;
+            color: #ff5050;
+        }
+
+        #blocker p {
+            margin: 4px 0;
+            color: #9fb0c3;
+            font-size: 13px;
+        }
+
+        #dmgflash {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center,
+                    transparent 50%, rgba(230, 57, 70, .5));
+            opacity: 0;
+            z-index: 60;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ===== 实时坐标监控面板 ===== */
+        #coordPanel {
+            position: fixed;
+            top: 12px;
+            left: 324px;
+            width: 300px;
+            background: rgba(5, 15, 30, .85);
+            border: 1px solid rgba(255, 80, 80, .35);
+            border-radius: 8px;
+            padding: 10px 12px;
+            z-index: 100;
+            pointer-events: none;
+            font-family: Consolas, Menlo, monospace;
+            font-size: 12px;
+            max-height: 70vh;
+            overflow: auto;
+        }
+
+        #coordPanel .cp-title {
+            color: #ff5050;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+        }
+
+        #coordPanel .cp-self {
+            color: #20c997;
+            margin: 2px 0;
+            line-height: 1.5;
+        }
+
+        #coordPanel .cp-self .lbl {
+            color: #9fb0c3;
+        }
+
+        #coordPanel .cp-others-title {
+            color: #9fb0c3;
+            margin: 8px 0 4px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255, 255, 255, .08);
+            font-size: 11px;
+        }
+
+        #coordPanel .cp-other {
+            color: #3aa0ff;
+            margin: 1px 0;
+            line-height: 1.5;
+            word-break: break-all;
+        }
+
+        #coordPanel .cp-other .id {
+            color: #ffcc44;
+        }
+
+        #coordPanel .cp-empty {
+            color: #555;
+            font-style: italic;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui">
+        <div style="font-weight:bold;margin-bottom:4px;color:#ff5050;">AVANT FPS</div>
+        <input id="wsUrl" value="ws://127.0.0.1:20026">
+        <input id="userId" value="1">
+        <input id="password" value="1">
+        <button id="btnConnect">连接</button>
+        <button id="btnLogin">登录</button>
+        <button id="btnEnter">进入3D地图</button>
+        <button id="btnCreateUser">注册账号</button>
+        <pre id="log">未连接</pre>
+    </div>
+
+    <!-- 实时坐标监控面板 -->
+    <div id="coordPanel">
+        <div class="cp-title">实时坐标监控</div>
+        <div class="cp-self" id="cpSelfLocal"><span class="lbl">本机(预测):</span> --</div>
+        <div class="cp-self" id="cpSelfServer"><span class="lbl">服务器:　</span> --</div>
+        <div class="cp-self" id="cpSelfId"><span class="lbl">我的ID:　</span> --</div>
+        <div class="cp-others-title">其他玩家 (服务器坐标)</div>
+        <div id="cpOthers">
+            <div class="cp-empty">暂无其他玩家</div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div id="crosshair">
+            <div class="dot"></div>
+        </div>
+        <div id="hpwrap">
+            <div id="hpbar">
+                <div id="hpfill"></div>
+            </div>
+            <div id="hptext">HP 100 / 100</div>
+        </div>
+        <div id="killfeed"></div>
+        <div id="stats">击杀 <b id="kills">0</b> · 死亡 <b id="deaths">0</b><br>在线 <b id="online">0</b></div>
+    </div>
+
+    <div id="hint">WASD 移动 · Space 跳跃 · 鼠标瞄准 · 点击射击 · ESC 解锁</div>
+    <div id="dmgflash"></div>
+
+    <!-- 初始添加 hidden 类，避免遮挡登录界面 -->
+    <div id="blocker" class="hidden">
+        <div class="card">
+            <h1>AVANT</h1>
+            <p style="font-size:15px;color:#e6edf3;">点击进入第一人称</p>
+            <p>WASD 移动 / Space 跳跃 / 鼠标瞄准 / 点击射击</p>
+            <p style="opacity:.6;">按 ESC 退出鼠标锁定</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
+    <script>
+        /* ============================================================
+         * AVANT FPS — 单文件 3D 射击客户端
+         * 修复：地面 Y 基准改为服务器出生点 Y=500000 (GROUND_Y)
+         *       地面/网格/障碍物/光照/落地判定统一以 GROUND_Y 为基准
+         *       相机与玩家模型直接使用服务器下发的绝对 Y 坐标
+         * ============================================================ */
+
+        /* ---------- Proto 定义（与原版完全一致） ---------- */
+        const protoText = `
+syntax="proto3";
+package avant;
+enum ProtoCmd{
+    PROTO_CMD_CS_REQ_EXAMPLE = 0;
+    PROTO_CMD_CS_RES_EXAMPLE = 1;
+    PROTO_CMD_TUNNEL_MAIN2WORKER_NEW_CLIENT = 2;
+    PROTO_CMD_TUNNEL_PACKAGE = 3;
+    PROTO_CMD_TUNNEL_CLIENT_FORWARD_MESSAGE = 4;
+    PROTO_CMD_TUNNEL_WEBSOCKET_BROADCAST = 5;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_NEW_CLIENT_CONNECTION = 6;
+    PROTO_CMD_TUNNEL_OTHER2WORKER_TEST = 7;
+    PROTO_CMD_LUA_TEST = 8;
+    PROTO_CMD_IPC_STREAM_AUTH_HANDSHAKE = 9;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_LUAVM = 10;
+    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN = 11;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_CLOSE_CLIENT_CONNECTION = 12;
+    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKER_CLOSE_CLIENT_CONNECTION = 13;
+    PROTO_CMD_UDP_SAFESTOP_REQ = 14;
+    PROTO_CMD_UDP_SAFESTOP_RES = 15;
+    PROTO_CMD_CS_REQ_LOGIN = 2001;
+    PROTO_CMD_CS_RES_LOGIN = 2002;
+    PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA = 2003;
+    PROTO_CMD_CS_REQ_MAP_PING = 2004;
+    PROTO_CMD_CS_RES_MAP_PONG = 2005;
+    PROTO_CMD_CS_REQ_MAP_INPUT = 2006;
+    PROTO_CMD_CS_MAP_NOTIFY_STATE_DATA = 2007;
+    PROTO_CMD_CS_MAP_ENTER_REQ = 2008;
+    PROTO_CMD_CS_MAP_ENTER_RES = 2009;
+    PROTO_CMD_CS_MAP_LEAVE_REQ = 2010;
+    PROTO_CMD_CS_MAP_LEAVE_RES = 2011;
+    PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA = 2012;
+    PROTO_CMD_CS_REQ_MAP3D_PING = 2013;
+    PROTO_CMD_CS_RES_MAP3D_PONG = 2014;
+    PROTO_CMD_CS_REQ_MAP3D_INPUT = 2015;
+    PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA = 2016;
+    PROTO_CMD_CS_MAP3D_ENTER_REQ = 2017;
+    PROTO_CMD_CS_MAP3D_ENTER_RES = 2018;
+    PROTO_CMD_CS_MAP3D_LEAVE_REQ = 2019;
+    PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
+    PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021;
+    PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
+    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023;
+    PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
+    PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
+    PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002;
+    PROTO_CMD_CS_REQ_CREATE_USER = 3003;
+    PROTO_CMD_CS_RES_CREATE_USER = 3004;
+    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
+    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_RES = 3006;
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_REQ = 3007;
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_RES = 3008;
+}
+message ProtoPackage{ ProtoCmd cmd=1; bytes protocol=2; }
+message ProtoCSReqLogin{ string userId=1; string password=2; }
+message ProtoCSMap3DNotifyInitData{ string userId=1; int32 x=2; int32 y=3; int32 z=10; }
+message ProtoCSReqMap3DInput{ int32 dirX=1; int32 dirY=2; int32 dirZ=3; uint32 seq=4; uint64 clientTime=5; }
+message ProtoMap3DPlayerPayload{ string userId=1; int32 x=2; int32 y=3; int32 z=4; uint32 lastSeq=8; }
+message ProtoCSMap3DNotifyStateData{ repeated ProtoMap3DPlayerPayload players=2; }
+message ProtoCSMap3DEnterReq{ uint32 mapId=1; }
+message ProtoCSMap3DEnterRes{ int32 ret=1; uint32 mapId=2; }
+message ProtoCSReqCreateUser{ string userId=1; string password=2; }
+message ProtoCSResCreateUser{ int32 ret=1; string userId=2; string password=3; uint64 userRecordID=4; }
+message ProtoCSReqMap3DShoot{
+  string shooterId=1; int32 dirX=2; int32 dirY=3; int32 dirZ=4;
+  int32 shootDist=5; uint64 clientTime=6;
+}
+message ProtoCSResMap3DShoot{ int32 ret=1; int32 damage=2; }
+message ProtoCSMap3DNotifyBullet{
+  string bulletId=1; string shooterId=2;
+  int32 x=3; int32 y=4; int32 z=5;
+  int32 dirX=6; int32 dirY=7; int32 dirZ=8;
+  uint64 lifeTime=9; uint64 spawnTime=10;
+}
+message ProtoCSMap3DNotifyHitPlayer{
+  string bulletId=1; string targetId=2; int32 damage=3;
+  int32 targetX=4; int32 targetY=5; int32 targetZ=6;
+}
+message ProtoCSMap3DNotifyPlayerHurt{
+  string targetId=1; int32 hp=2; int32 maxHp=3; int32 damage=4;
+  int32 x=5; int32 y=6; int32 z=7;
+}
+`;
+
+        const root = protobuf.parse(protoText).root;
+        const ProtoPackage = root.lookupType("avant.ProtoPackage");
+        const Cmd = root.lookupEnum("avant.ProtoCmd").values;
+        const T_Login = root.lookupType("avant.ProtoCSReqLogin");
+        const T_Init = root.lookupType("avant.ProtoCSMap3DNotifyInitData");
+        const T_State = root.lookupType("avant.ProtoCSMap3DNotifyStateData");
+        const T_Input = root.lookupType("avant.ProtoCSReqMap3DInput");
+        const T_Enter = root.lookupType("avant.ProtoCSMap3DEnterReq");
+        const T_CreateU = root.lookupType("avant.ProtoCSReqCreateUser");
+        const T_CreateR = root.lookupType("avant.ProtoCSResCreateUser");
+        const T_Shoot = root.lookupType("avant.ProtoCSReqMap3DShoot");
+        const T_ShootR = root.lookupType("avant.ProtoCSResMap3DShoot");
+        const T_Bullet = root.lookupType("avant.ProtoCSMap3DNotifyBullet");
+        const T_Hit = root.lookupType("avant.ProtoCSMap3DNotifyHitPlayer");
+        const T_Hurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt");
+        const SHOOT_DIST = 0;
+
+        /* ---------- 关键常量：服务器出生点 Y 基准 ---------- */
+        // 服务器以 Y=500000 作为出生/地面，客户端以此值为地面基准
+        const GROUND_Y = 500000;
+
+        /* ---------- 全局状态 ---------- */
+        const players = new Map();   // userId -> { group, mesh, label, prevPos, targetPos, updateTime }
+        const bullets = new Map();   // bulletId -> { mesh, trail, points, born }
+        let selfId = null;
+        let lastSeq = 0;
+        let kills = 0, deaths = 0;
+        let myHp = 100, myMaxHp = 100;
+
+        /* ---------- UI / 日志 ---------- */
+        const logEl = document.getElementById("log");
+        function log(...a) {
+            const msg = new Date().toLocaleTimeString() + " " + a.join(" ");
+            logEl.textContent = msg + "\n" + logEl.textContent;
+            console.log(msg); // 同时输出到控制台，方便排查
+            if (logEl.textContent.length > 3000) logEl.textContent = "";
+        }
+        function killfeed(text) {
+            const el = document.getElementById("killfeed");
+            const d = document.createElement("div");
+            d.textContent = text; el.appendChild(d);
+            setTimeout(() => d.remove(), 4000);
+        }
+
+        /* ---------- WebSocket ---------- */
+        let ws = null;
+        function sendInner(type, obj, cmd) {
+            if (!ws || ws.readyState !== 1) { log("WebSocket 未连接"); return; }
+            const inner = type.encode(type.create(obj)).finish();
+            const pkg = ProtoPackage.encode(ProtoPackage.create({ cmd, protocol: inner })).finish();
+            ws.send(pkg);
+        }
+
+        /* ---------- 协议处理 ---------- */
+        function handlePkg(msg) {
+            switch (msg.cmd) {
+                case Cmd.PROTO_CMD_CS_RES_LOGIN: log("✓ 登录成功"); break;
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA: {
+                    const d = T_Init.decode(msg.protocol);
+                    selfId = String(d.userId); // 统一转为字符串
+                    if (!players.has(selfId)) {
+                        const p = createPlayerMesh(true, selfId);
+                        players.set(selfId, p);
+                    }
+                    const me = players.get(selfId);
+                    // 直接使用服务器下发的绝对坐标（含 Y=500000）
+                    me.group.position.set(d.x, d.y, d.z);
+                    me.prevPos.set(d.x, d.y, d.z);
+                    me.targetPos.set(d.x, d.y, d.z);
+                    localPos.set(d.x, d.y, d.z);
+                    serverPos.set(d.x, d.y, d.z);
+                    log("✓ 初始化玩家:", selfId, `(${d.x},${d.y},${d.z})`);
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA: {
+                    const s = T_State.decode(msg.protocol);
+
+                    // --- 调试输出：确认数据到达 ---
+                    console.log("[State Update] Count:", s.players.length);
+                    const pList = s.players.map(p => `${p.userId}(${p.x},${p.z})`).join(", ");
+                    if (pList) console.log("  Players:", pList);
+                    // -----------------------------
+
+                    document.getElementById("online").textContent = s.players.length;
+                    const seen = new Set();
+                    s.players.forEach(p => {
+                        const pId = String(p.userId);
+                        seen.add(pId);
+                        let m = players.get(pId);
+                        if (!m) {
+                            m = createPlayerMesh(pId === selfId, pId);
+                            players.set(pId, m);
+                            log("检测到新玩家:", pId);
+                        }
+                        // 更新插值终点：直接使用服务器下发的绝对坐标（含 Y）
+                        m.targetPos.set(p.x, p.y, p.z);
+                        m.updateTime = performance.now();
+
+                        if (pId === selfId) {
+                            serverPos.set(p.x, p.y, p.z);
+                        }
+                    });
+                    // 移除离开的玩家
+                    players.forEach((m, id) => {
+                        if (!seen.has(id) && id !== selfId) {
+                            scene.remove(m.group);
+                            players.delete(id);
+                            log("玩家离开:", id);
+                        }
+                    });
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES:
+                    log("✓ 进入3D地图成功");
+                    document.getElementById("blocker").classList.remove("hidden");
+                    break;
+                case Cmd.PROTO_CMD_CS_RES_CREATE_USER: {
+                    const r = T_CreateR.decode(msg.protocol);
+                    const o = T_CreateR.toObject(r, { longs: String });
+                    log(`创建账号返回 ${JSON.stringify(o)}`);
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
+                    const b = T_Bullet.decode(msg.protocol);
+                    handleBullet(b); break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER: {
+                    const h = T_Hit.decode(msg.protocol);
+                    log(`💥 击中 ${h.targetId} 伤害 ${h.damage}`);
+                    killfeed(`你命中 ${h.targetId} → -${h.damage}HP`);
+                    createHitEffect(h.targetX, h.targetY, h.targetZ);
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT: {
+                    const h = T_Hurt.decode(msg.protocol);
+                    const targetIdStr = String(h.targetId);
+                    if (targetIdStr === selfId) {
+                        myHp = h.hp; myMaxHp = h.maxHp;
+                        updateHpUI();
+                        flashDamage();
+                        if (h.hp <= 0) { deaths++; document.getElementById("deaths").textContent = deaths; }
+                    }
+                    const pm = players.get(targetIdStr);
+                    if (pm) showDamageNumber(h.x, h.y + 3, h.z, h.damage);
+                    log(`⚠️ ${targetIdStr} 受伤 ${h.damage}  HP ${h.hp}/${h.maxHp}`);
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_RES_MAP3D_SHOOT: {
+                    const r = T_ShootR.decode(msg.protocol);
+                    if (r.damage > 0) { kills++; document.getElementById("kills").textContent = kills; }
+                    break;
+                }
+                default: break;
+            }
+        }
+
+        /* ---------- 按钮 ---------- */
+        document.getElementById("btnConnect").onclick = () => {
+            if (ws && ws.readyState === 1) { log("已连接"); return; }
+            ws = new WebSocket(document.getElementById("wsUrl").value);
+            ws.binaryType = "arraybuffer";
+            ws.onopen = () => log("✓ WS 已连接");
+            ws.onclose = () => log("✗ WS 断开");
+            ws.onerror = () => log("✗ WS 错误");
+            ws.onmessage = ev => {
+                const msg = ProtoPackage.decode(new Uint8Array(ev.data));
+                handlePkg(msg);
+            };
+        };
+        document.getElementById("btnLogin").onclick = () => {
+            sendInner(T_Login, {
+                userId: document.getElementById("userId").value,
+                password: document.getElementById("password").value
+            }, Cmd.PROTO_CMD_CS_REQ_LOGIN);
+            log("发送登录请求");
+        };
+        document.getElementById("btnEnter").onclick = () => {
+            sendInner(T_Enter, { mapId: 4 }, Cmd.PROTO_CMD_CS_MAP3D_ENTER_REQ);
+            log("请求进入地图");
+        };
+        document.getElementById("btnCreateUser").onclick = () => {
+            sendInner(T_CreateU, {
+                userId: document.getElementById("userId").value,
+                password: document.getElementById("password").value
+            }, Cmd.PROTO_CMD_CS_REQ_CREATE_USER);
+            log("发送注册请求");
+        };
+
+        /* ============================================================
+         * Three.js 场景
+         * ============================================================ */
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a1322);
+        scene.fog = new THREE.Fog(0x0a1322, 80, 400);
+
+        const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        /* ---------- 光照 ---------- */
+        scene.add(new THREE.HemisphereLight(0x88aaff, 0x223344, 0.7));
+
+        // 太阳光：以地面 GROUND_Y 为基准定位，避免光照打到 Y=0 处
+        const sun = new THREE.DirectionalLight(0xffeecc, 1.0);
+        sun.position.set(60, GROUND_Y + 120, 40); sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.camera.left = -120; sun.shadow.camera.right = 120;
+        sun.shadow.camera.top = 120; sun.shadow.camera.bottom = -120;
+        sun.shadow.camera.near = 1; sun.shadow.camera.far = 400;
+        scene.add(sun);
+
+        // 让方向光的目标位于地面，保证阴影投射到 GROUND_Y 平面上
+        const sunTarget = new THREE.Object3D();
+        sunTarget.position.set(0, GROUND_Y, 0);
+        scene.add(sunTarget);
+        sun.target = sunTarget;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+        /* ---------- 地面 ---------- */
+        const groundTex = makeGroundTexture();
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(2000, 2000),
+            new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95, metalness: 0.0 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = GROUND_Y;   // 地面平移到服务器出生点 Y
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        function makeGroundTexture() {
+            const c = document.createElement("canvas"); c.width = c.height = 512;
+            const g = c.getContext("2d");
+            g.fillStyle = "#0e1a2e"; g.fillRect(0, 0, 512, 512);
+            g.strokeStyle = "#1a2f4e"; g.lineWidth = 2;
+            for (let i = 0; i <= 512; i += 64) {
+                g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.stroke();
+                g.beginPath(); g.moveTo(0, i); g.lineTo(512, i); g.stroke();
+            }
+            const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(40, 40); return t;
+        }
+
+        /* ---------- 障碍物 / 掩体 ---------- */
+        const obstacles = [];
+        // yRel: 相对地面的中心 Y；内部再叠加 GROUND_Y 得到世界坐标
+        function addBox(x, yRel, z, w, h, d, color) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+                new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+            m.position.set(x, GROUND_Y + yRel, z); m.castShadow = true; m.receiveShadow = true;
+            scene.add(m); obstacles.push({ mesh: m, half: new THREE.Vector3(w / 2, h / 2, d / 2) });
+            return m;
+        }
+        for (let i = 0; i < 14; i++) {
+            const x = (Math.random() - 0.5) * 180, z = (Math.random() - 0.5) * 180;
+            const h = 2 + Math.random() * 5, w = 3 + Math.random() * 4, d = 3 + Math.random() * 4;
+            addBox(x, h / 2, z, w, h, d, new THREE.Color().setHSL(0.6, 0.3, 0.2 + Math.random() * 0.1));
+        }
+        addBox(0, 1.5, 0, 4, 3, 4, 0x2a4a6a);
+
+        // 网格地面辅助线，同样平移到 GROUND_Y
+        const gridHelper = new THREE.GridHelper(400, 80, 0x1a3a5c, 0x0f243f);
+        gridHelper.position.y = GROUND_Y;
+        scene.add(gridHelper);
+
+        /* ---------- 第一人称视图模型：枪 ---------- */
+        const viewModel = new THREE.Group();
+        camera.add(viewModel);
+        scene.add(camera);
+
+        const gunMat = new THREE.MeshStandardMaterial({ color: 0x222831, roughness: 0.5, metalness: 0.7 });
+        const gunMat2 = new THREE.MeshStandardMaterial({ color: 0x11151c, roughness: 0.6, metalness: 0.6 });
+        const gunMat3 = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.4, metalness: 0.8 });
+
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.5), gunMat);
+        body.position.set(0, -0.05, -0.35); viewModel.add(body);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 12), gunMat2);
+        barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.02, -0.65); viewModel.add(barrel);
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.12), gunMat);
+        grip.position.set(0, -0.16, -0.18); grip.rotation.x = 0.3; viewModel.add(grip);
+        const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.1), gunMat3);
+        mag.position.set(0, -0.14, -0.32); viewModel.add(mag);
+        const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.08), gunMat2);
+        sight.position.set(0, 0.08, -0.35); viewModel.add(sight);
+        const muzzle = new THREE.Object3D();
+        muzzle.position.set(0, 0.02, -0.9); viewModel.add(muzzle);
+
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffdd66, transparent: true, opacity: 0 });
+        const flash = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), flashMat);
+        flash.position.copy(muzzle.position); viewModel.add(flash);
+        let flashTime = 0;
+
+        viewModel.position.set(0.18, -0.18, 0);
+
+        /* ---------- 玩家模型（其他人可见） ---------- */
+        function createPlayerMesh(isSelf, id) {
+            const group = new THREE.Group();
+            group.name = "player_" + id; // 设置名字方便调试
+
+            const pBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.0, 6, 12),
+                new THREE.MeshStandardMaterial({
+                    color: isSelf ? 0x20c997 : 0x3aa0ff,
+                    emissive: isSelf ? 0x0a4d3a : 0x1a5080, emissiveIntensity: 0.25, roughness: 0.6
+                }));
+            pBody.position.y = 1.1; pBody.castShadow = true;
+            group.add(pBody);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0xf0c090, roughness: 0.7 }));
+            head.position.y = 2.0; head.castShadow = true;
+            group.add(head);
+
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+            const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), eyeMat);
+            e1.position.set(-0.12, 2.05, 0.3); group.add(e1);
+            const e2 = e1.clone(); e2.position.x = 0.12; group.add(e2);
+
+            const armMat = new THREE.MeshStandardMaterial({ color: isSelf ? 0x169970 : 0x2a7ad0, roughness: 0.6 });
+            const larm = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.8, 4, 8), armMat);
+            larm.position.set(-0.65, 1.2, 0); larm.castShadow = true; group.add(larm);
+            const rarm = larm.clone(); rarm.position.x = 0.65; group.add(rarm);
+
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1a2540, roughness: 0.7 });
+            const lleg = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.7, 4, 8), legMat);
+            lleg.position.set(-0.22, 0.45, 0); lleg.castShadow = true; group.add(lleg);
+            const rleg = lleg.clone(); rleg.position.x = 0.22; group.add(rleg);
+
+            const pgun = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.5),
+                new THREE.MeshStandardMaterial({ color: 0x222831, metalness: 0.6, roughness: 0.5 }));
+            pgun.position.set(0.5, 1.2, -0.25); group.add(pgun);
+
+            const label = makeLabel(id || "");
+            label.position.y = 2.6; group.add(label);
+
+            if (isSelf) group.visible = false;
+
+            // 防止因位置更新过快导致的视锥剔除误判
+            group.frustumCulled = false;
+
+            scene.add(group);
+            return {
+                group, mesh: pBody, label,
+                prevPos: new THREE.Vector3(),
+                targetPos: new THREE.Vector3(),
+                updateTime: performance.now()
+            };
+        }
+
+        function makeLabel(text) {
+            const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+            const g = c.getContext("2d");
+            g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, 256, 64);
+            g.font = "bold 28px sans-serif"; g.fillStyle = "#ffcc44";
+            g.textAlign = "center"; g.textBaseline = "middle";
+            g.fillText(text, 128, 32);
+            const tex = new THREE.CanvasTexture(c);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+            sp.scale.set(2, 0.5, 1); return sp;
+        }
+
+        /* ---------- 子弹 / 特效 ---------- */
+        function createBulletMesh() {
+            const g = new THREE.SphereGeometry(0.18, 8, 8);
+            const m = new THREE.MeshBasicMaterial({ color: 0xffee44 });
+            const mesh = new THREE.Mesh(g, m);
+            const trail = new THREE.Line(
+                new THREE.BufferGeometry(),
+                new THREE.LineBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.7 })
+            );
+            scene.add(mesh); scene.add(trail);
+            return { mesh, trail, points: [] };
+        }
+        function handleBullet(b) {
+            let bl = bullets.get(b.bulletId);
+            if (!bl) { bl = createBulletMesh(); bullets.set(b.bulletId, bl); }
+            const pos = new THREE.Vector3(b.x, b.y, b.z);
+            bl.mesh.position.copy(pos);
+            bl.points.push(pos.clone());
+            if (bl.points.length > 20) bl.points.shift();
+            bl.trail.geometry.setFromPoints(bl.points);
+            bl.born = performance.now();
+        }
+        function cleanupBullet(id) {
+            const bl = bullets.get(id); if (!bl) return;
+            scene.remove(bl.mesh); scene.remove(bl.trail);
+            bl.mesh.geometry.dispose(); bl.trail.geometry.dispose();
+            bullets.delete(id);
+        }
+
+        function createHitEffect(x, y, z) {
+            const grp = new THREE.Group();
+            for (let i = 0; i < 10; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6),
+                    new THREE.MeshBasicMaterial({ color: 0xff6633, transparent: true }));
+                p.position.set(x, y, z);
+                const v = new THREE.Vector3((Math.random() - 0.5), Math.random(), (Math.random() - 0.5)).multiplyScalar(6);
+                p.userData.v = v; grp.add(p);
+            }
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.8, 16),
+                new THREE.MeshBasicMaterial({ color: 0xff3333, side: THREE.DoubleSide, transparent: true }));
+            ring.position.set(x, y, z); ring.userData.life = 1; grp.add(ring);
+            scene.add(grp);
+            const start = performance.now();
+            (function anim() {
+                const t = (performance.now() - start) / 1000;
+                if (t > 0.6) { scene.remove(grp); return; }
+                grp.children.forEach(p => {
+                    if (p.userData.v) {
+                        p.position.addScaledVector(p.userData.v, 0.016);
+                        p.userData.v.y -= 9.8 * 0.016; p.material.opacity = 1 - t / 0.6;
+                    }
+                    if (p.userData.life) { p.scale.setScalar(1 + t * 3); p.material.opacity = 1 - t / 0.6; }
+                });
+                requestAnimationFrame(anim);
+            })();
+        }
+
+        const dmgNums = [];
+        function showDamageNumber(x, y, z, dmg) {
+            const c = document.createElement("canvas"); c.width = 128; c.height = 64;
+            const g = c.getContext("2d");
+            g.font = "bold 48px sans-serif"; g.fillStyle = "#ff4444";
+            g.textAlign = "center"; g.fillText("-" + dmg, 64, 48);
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false }));
+            sp.position.set(x, y, z); sp.scale.set(1.5, 0.75, 1);
+            sp.userData.life = 1; sp.userData.vy = 2;
+            scene.add(sp); dmgNums.push(sp);
+        }
+
+        /* ============================================================
+         * 控制：指针锁定 + 视角
+         * ============================================================ */
+        let yaw = 0, pitch = 0;
+        const EYE_HEIGHT = 2.0;
+        const PLAYER_RADIUS = 0.6;
+
+        const blocker = document.getElementById("blocker");
+        blocker.addEventListener("click", () => {
+            renderer.domElement.requestPointerLock();
+        });
+        document.addEventListener("pointerlockchange", () => {
+            if (document.pointerLockElement === renderer.domElement) {
+                blocker.classList.add("hidden");
+            } else {
+                if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
+            }
+        });
+        document.addEventListener("mousemove", e => {
+            if (document.pointerLockElement !== renderer.domElement) return;
+            const sens = 0.0022;
+            yaw -= e.movementX * sens;
+            pitch -= e.movementY * sens;
+            pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch));
+        });
+
+        /* ============================================================
+         * 移动 + 跳跃（客户端预测）
+         * 地面基准为 GROUND_Y
+         * ============================================================ */
+        const localPos = new THREE.Vector3();
+        const serverPos = new THREE.Vector3();
+        const velY = { v: 0 };
+        let onGround = true;
+        const GRAVITY = 28;
+        const JUMP_SPEED = 10;
+        const MOVE_SPEED = 7;
+        const INPUT_SEND_SPEED = 2;
+
+        const key = {};
+        addEventListener("keydown", e => {
+            key[e.key.toLowerCase()] = true;
+            if (e.code === "Space") { e.preventDefault(); tryJump(); }
+        });
+        addEventListener("keyup", e => key[e.key.toLowerCase()] = false);
+
+        function tryJump() {
+            if (onGround) { velY.v = JUMP_SPEED; onGround = false; }
+        }
+
+        function collide(pos) {
+            for (const o of obstacles) {
+                const dx = pos.x - o.mesh.position.x, dy = pos.y - o.mesh.position.y, dz = pos.z - o.mesh.position.z;
+                const hx = o.half.x + PLAYER_RADIUS, hy = o.half.y + 10, hz = o.half.z + PLAYER_RADIUS;
+                if (Math.abs(dx) < hx && Math.abs(dy) < hy && Math.abs(dz) < hz) {
+                    const px = hx - Math.abs(dx), pz = hz - Math.abs(dz);
+                    if (px < pz) pos.x += dx > 0 ? px : -px;
+                    else pos.z += dz > 0 ? pz : -pz;
+                }
+            }
+        }
+
+        setInterval(() => {
+            if (!selfId) return;
+            const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+            const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+            let mx = 0, mz = 0;
+            if (key.w) { mx += f.x; mz += f.z; }
+            if (key.s) { mx -= f.x; mz -= f.z; }
+            if (key.a) { mx -= r.x; mz -= r.z; }
+            if (key.d) { mx += r.x; mz += r.z; }
+            let my = 0;
+            if (!onGround && velY.v > 0) my = INPUT_SEND_SPEED;
+            else if (key.shift) my = -INPUT_SEND_SPEED;
+            const len = Math.hypot(mx, mz);
+            if (len > 0) { mx = mx / len * INPUT_SEND_SPEED; mz = mz / len * INPUT_SEND_SPEED; }
+            lastSeq++;
+            sendInner(T_Input, {
+                dirX: Math.round(mx), dirY: Math.round(my), dirZ: Math.round(mz),
+                seq: lastSeq, clientTime: Date.now()
+            }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
+        }, 80);
+
+        /* ============================================================
+         * 射击
+         * ============================================================ */
+        let lastShootTime = 0;
+        const SHOOT_COOLDOWN = 140;
+
+        function shoot() {
+            if (!selfId) return;
+            const now = Date.now();
+            if (now - lastShootTime < SHOOT_COOLDOWN) return;
+            lastShootTime = now;
+
+            viewModel.position.z = 0.06;
+            flashTime = 0.05;
+            flash.material.opacity = 1;
+            flash.scale.setScalar(1 + Math.random() * 0.6);
+
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            const dirXn = Math.round(dir.x * 10000);
+            const dirYn = Math.round(dir.y * 10000);
+            const dirZn = Math.round(dir.z * 10000);
+
+            sendInner(T_Shoot, {
+                shooterId: selfId,
+                dirX: dirXn, dirY: dirYn, dirZ: dirZn,
+                shootDist: SHOOT_DIST, clientTime: Date.now()
+            }, Cmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT);
+
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const hit = ray.intersectObjects(obstacles.map(o => o.mesh), false);
+            if (hit.length) {
+                createTracer(muzzle.getWorldPosition(new THREE.Vector3()), hit[0].point);
+            } else {
+                const end = dir.clone().multiplyScalar(120).add(camera.getWorldPosition(new THREE.Vector3()));
+                createTracer(muzzle.getWorldPosition(new THREE.Vector3()), end);
+            }
+        }
+
+        function createTracer(a, b) {
+            const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffee66, transparent: true, opacity: 0.8 }));
+            scene.add(l);
+            let t = 0;
+            (function f() { t += 0.05; l.material.opacity = 0.8 - t; if (t > 0.8) { scene.remove(l); g.dispose(); l.material.dispose(); return; } requestAnimationFrame(f); })();
+        }
+
+        renderer.domElement.addEventListener("mousedown", e => {
+            if (document.pointerLockElement === renderer.domElement) shoot();
+        });
+
+        /* ============================================================
+         * HUD
+         * ============================================================ */
+        function updateHpUI() {
+            const pct = Math.max(0, myHp / myMaxHp);
+            document.getElementById("hpfill").style.width = (pct * 100) + "%";
+            document.getElementById("hptext").textContent = `HP ${myHp} / ${myMaxHp}`;
+        }
+        function flashDamage() {
+            const f = document.getElementById("dmgflash");
+            f.style.transition = "none"; f.style.opacity = "0.8";
+            requestAnimationFrame(() => { f.style.transition = "opacity .5s"; f.style.opacity = "0"; });
+        }
+        updateHpUI();
+
+        /* ============================================================
+         * 实时坐标监控面板
+         * ----------------------------------------------------------
+         * 数据来源：
+         *  - 本机(预测): localPos —— 客户端预测 + 服务器回弹修正后的当前位置
+         *  - 服务器:    serverPos —— 由 PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA 回包写入
+         *  - 其他玩家:   players Map 中每个对象的 targetPos —— 服务器下发的最新坐标
+         *                (渲染层 group.position 会 lerp 逼近该值)
+         * 更新策略：约 10Hz 节流刷新，避免每帧操作 DOM
+         * ============================================================ */
+        const cpSelfIdEl = document.getElementById("cpSelfId");
+        const cpSelfLocalEl = document.getElementById("cpSelfLocal");
+        const cpSelfSvrEl = document.getElementById("cpSelfServer");
+        const cpOthersEl = document.getElementById("cpOthers");
+
+        function fmt(v) {
+            // 保留 2 位小数，固定宽度便于对齐
+            const s = v.toFixed(2);
+            return s.padStart(8, " ");
+        }
+
+        let cpAccum = 0;
+        function updateCoordPanel(dt) {
+            cpAccum += dt;
+            if (cpAccum < 0.1) return; // ~10Hz
+            cpAccum = 0;
+
+            // 我的 ID
+            cpSelfIdEl.innerHTML = `<span class="lbl">我的ID:　</span> ${selfId ?? "--"}`;
+
+            // 本机预测坐标
+            cpSelfLocalEl.innerHTML =
+                `<span class="lbl">本机(预测):</span> X${fmt(localPos.x)} Y${fmt(localPos.y)} Z${fmt(localPos.z)}`;
+
+            // 服务器权威坐标
+            cpSelfSvrEl.innerHTML =
+                `<span class="lbl">服务器:　</span> X${fmt(serverPos.x)} Y${fmt(serverPos.y)} Z${fmt(serverPos.z)}`;
+
+            // 其他玩家坐标（来自服务器下发的 targetPos）
+            let html = "";
+            let count = 0;
+            players.forEach((p, id) => {
+                if (id === selfId) return;
+                count++;
+                const t = p.targetPos;
+                html += `<div class="cp-other"><span class="id">[${id}]</span> X${fmt(t.x)} Y${fmt(t.y)} Z${fmt(t.z)}</div>`;
+            });
+            cpOthersEl.innerHTML = count ? html : `<div class="cp-empty">暂无其他玩家</div>`;
+        }
+
+        /* ============================================================
+         * 渲染循环
+         * ============================================================ */
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+
+            if (selfId) {
+                const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+                const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+                let mx = 0, mz = 0;
+                if (key.w) { mx += f.x; mz += f.z; }
+                if (key.s) { mx -= f.x; mz -= f.z; }
+                if (key.a) { mx += r.x; mz += r.z; }
+                if (key.d) { mx += r.x; mz += r.z; }
+                const len = Math.hypot(mx, mz);
+                if (len > 0) { mx = mx / len * MOVE_SPEED * dt; mz = mz / len * MOVE_SPEED * dt; }
+
+                localPos.x = localPos.x + mx + (serverPos.x - localPos.x) * Math.min(1, dt * 8);
+                localPos.z = localPos.z + mz + (serverPos.z - localPos.z) * Math.min(1, dt * 8);
+
+                // 重力 + 落地判定，地面为 GROUND_Y
+                velY.v -= GRAVITY * dt;
+                localPos.y += velY.v * dt;
+                if (localPos.y <= GROUND_Y) {
+                    localPos.y = GROUND_Y;
+                    velY.v = 0;
+                    onGround = true;
+                }
+
+                collide(localPos);
+
+                camera.position.set(localPos.x, localPos.y + EYE_HEIGHT, localPos.z);
+                camera.rotation.order = "YXZ";
+                camera.rotation.y = yaw;
+                camera.rotation.x = pitch;
+            }
+
+            viewModel.position.z += (0 - viewModel.position.z) * Math.min(1, dt * 12);
+            if (flashTime > 0) { flashTime -= dt; if (flashTime <= 0) { flash.material.opacity = 0; } }
+
+            // --- 其他玩家位置插值算法 ---
+            players.forEach((p, id) => {
+                if (id === selfId) return;
+
+                // 使用基于帧时间的 lerp，targetPos 已是服务器绝对坐标（含 Y=500000）
+                p.group.position.lerp(p.targetPos, dt * 12);
+
+                // 旋转朝向：根据上一帧到这一帧的移动方向
+                const dir = new THREE.Vector3().subVectors(p.targetPos, p.group.position);
+                if (dir.lengthSq() > 0.001) {
+                    dir.y = 0;
+                    dir.normalize();
+                    const targetRot = Math.atan2(dir.x, dir.z);
+                    // 简单的旋转插值
+                    let rotDiff = targetRot - p.group.rotation.y;
+                    // 处理 -PI 到 PI 的跳变
+                    while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                    while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                    p.group.rotation.y += rotDiff * dt * 10;
+                }
+            });
+
+            const now = performance.now();
+            bullets.forEach((bl, id) => {
+                if (now - bl.born > 2000) {
+                    bl.mesh.material.opacity = Math.max(0, 1 - (now - bl.born - 2000) / 500);
+                    if (now - bl.born > 2500) cleanupBullet(id);
+                }
+            });
+
+            for (let i = dmgNums.length - 1; i >= 0; i--) {
+                const s = dmgNums[i];
+                s.userData.life -= dt;
+                s.position.y += s.userData.vy * dt;
+                s.userData.vy -= 2 * dt;
+                s.material.opacity = Math.max(0, s.userData.life);
+                if (s.userData.life <= 0) { scene.remove(s); dmgNums.splice(i, 1); }
+            }
+
+            // 刷新坐标监控面板（内部节流 ~10Hz）
+            updateCoordPanel(dt);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        addEventListener("resize", () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
+        log("✓ AVANT FPS 已初始化 (地面 Y=" + GROUND_Y + ")");
+        log("操作: 连接 → 登录 → 进入3D地图 → 点击画面");
+    </script>
+</body>
+
+</html>
