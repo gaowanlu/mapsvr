@@ -483,6 +483,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
         const T_Hit = root.lookupType("avant.ProtoCSMap3DNotifyHitPlayer");
         const T_Hurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt");
         const SHOOT_DIST = 0;
+        const DEBUG_STATE = false; // 设为 true 可打印每次 State 回包明细
 
         /* ---------- 关键常量：服务器出生点 Y 基准 ---------- */
         // 服务器以 Y=500000 作为出生/地面，客户端以此值为地面基准
@@ -544,11 +545,13 @@ message ProtoCSMap3DNotifyPlayerHurt{
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA: {
                     const s = T_State.decode(msg.protocol);
 
-                    // --- 调试输出：确认数据到达 ---
-                    console.log("[State Update] Count:", s.players.length);
-                    const pList = s.players.map(p => `${p.userId}(${p.x},${p.z})`).join(", ");
-                    if (pList) console.log("  Players:", pList);
-                    // -----------------------------
+                    // --- 调试输出：确认数据到达（DEBUG_STATE 控制开关） ---
+                    if (DEBUG_STATE) {
+                        console.log("[State Update] Count:", s.players.length);
+                        const pList = s.players.map(p => `${p.userId}(${p.x},${p.z})`).join(", ");
+                        if (pList) console.log("  Players:", pList);
+                    }
+                    // ------------------------------------------------------
 
                     document.getElementById("online").textContent = s.players.length;
                     const seen = new Set();
@@ -632,8 +635,12 @@ message ProtoCSMap3DNotifyPlayerHurt{
             ws.onclose = () => log("✗ WS 断开");
             ws.onerror = () => log("✗ WS 错误");
             ws.onmessage = ev => {
-                const msg = ProtoPackage.decode(new Uint8Array(ev.data));
-                handlePkg(msg);
+                try {
+                    const msg = ProtoPackage.decode(new Uint8Array(ev.data));
+                    handlePkg(msg);
+                } catch (err) {
+                    log("✗ 解包失败:", err.message || err);
+                }
             };
         };
         document.getElementById("btnLogin").onclick = () => {
@@ -834,7 +841,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
         /* ---------- 子弹 / 特效 ---------- */
         function createBulletMesh() {
             const g = new THREE.SphereGeometry(0.18, 8, 8);
-            const m = new THREE.MeshBasicMaterial({ color: 0xffee44 });
+            const m = new THREE.MeshBasicMaterial({ color: 0xffee44, transparent: true });
             const mesh = new THREE.Mesh(g, m);
             const trail = new THREE.Line(
                 new THREE.BufferGeometry(),
@@ -876,7 +883,11 @@ message ProtoCSMap3DNotifyPlayerHurt{
             const start = performance.now();
             (function anim() {
                 const t = (performance.now() - start) / 1000;
-                if (t > 0.6) { scene.remove(grp); return; }
+                if (t > 0.6) {
+                    scene.remove(grp);
+                    grp.children.forEach(p => { p.geometry.dispose(); p.material.dispose(); });
+                    return;
+                }
                 grp.children.forEach(p => {
                     if (p.userData.v) {
                         p.position.addScaledVector(p.userData.v, 0.016);
@@ -1104,19 +1115,23 @@ message ProtoCSMap3DNotifyPlayerHurt{
          * 渲染循环
          * ============================================================ */
         const clock = new THREE.Clock();
+        // 复用临时向量，避免每帧 new 造成 GC 抖动
+        const _f = new THREE.Vector3();
+        const _r = new THREE.Vector3();
+        const _dir = new THREE.Vector3();
 
         function animate() {
             requestAnimationFrame(animate);
             const dt = Math.min(clock.getDelta(), 0.05);
 
             if (selfId) {
-                const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-                const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+                _f.set(Math.sin(yaw), 0, Math.cos(yaw));
+                _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
                 let mx = 0, mz = 0;
-                if (key.w) { mx += f.x; mz += f.z; }
-                if (key.s) { mx -= f.x; mz -= f.z; }
-                if (key.a) { mx += r.x; mz += r.z; }
-                if (key.d) { mx += r.x; mz += r.z; }
+                if (key.w) { mx += _f.x; mz += _f.z; }
+                if (key.s) { mx -= _f.x; mz -= _f.z; }
+                if (key.a) { mx -= _r.x; mz -= _r.z; }
+                if (key.d) { mx += _r.x; mz += _r.z; }
                 const len = Math.hypot(mx, mz);
                 if (len > 0) { mx = mx / len * MOVE_SPEED * dt; mz = mz / len * MOVE_SPEED * dt; }
 
@@ -1147,15 +1162,17 @@ message ProtoCSMap3DNotifyPlayerHurt{
             players.forEach((p, id) => {
                 if (id === selfId) return;
 
+                // 先用 lerp 前的位置 -> targetPos 计算移动方向（lerp 后方向会退化为残余小向量）
+                _dir.subVectors(p.targetPos, p.group.position);
+
                 // 使用基于帧时间的 lerp，targetPos 已是服务器绝对坐标（含 Y=500000）
                 p.group.position.lerp(p.targetPos, dt * 12);
 
-                // 旋转朝向：根据上一帧到这一帧的移动方向
-                const dir = new THREE.Vector3().subVectors(p.targetPos, p.group.position);
-                if (dir.lengthSq() > 0.001) {
-                    dir.y = 0;
-                    dir.normalize();
-                    const targetRot = Math.atan2(dir.x, dir.z);
+                // 旋转朝向：根据本帧移动方向
+                if (_dir.lengthSq() > 0.001) {
+                    _dir.y = 0;
+                    _dir.normalize();
+                    const targetRot = Math.atan2(_dir.x, _dir.z);
                     // 简单的旋转插值
                     let rotDiff = targetRot - p.group.rotation.y;
                     // 处理 -PI 到 PI 的跳变
