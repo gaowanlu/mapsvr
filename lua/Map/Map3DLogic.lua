@@ -41,14 +41,26 @@ end
 -- 获取最大射击距离（单位：px）
 ---@return integer
 function Map3D:GetMaxShootDist()
-    return 5000
+    return 200
 end
 
--- 获取子弹碰撞半径（单位：px），默认为8
----@param bulletType string | nil 子弹类型（未来可用于不同武器）
+-- 获取子弹碰撞半径
+---@param _bulletType string | nil
+---@return number
+function Map3D:GetBulletCollisionRadius(_bulletType)
+    return 0.5
+end
+
+-- 获取子弹的存活时间（单位：ms）
 ---@return integer
-function Map3D:GetBulletCollisionRadius(bulletType)
-    return 8
+function Map3D:GetBulletLifeTime()
+    return 1000
+end
+
+-- 获取子弹速度Ratio
+---@return integer
+function Map3D:GetBulletSpeedRatio()
+    return 50000
 end
 
 ---@return Map3DDbDataType
@@ -77,17 +89,8 @@ function Map3D:GetMapPlayerByUserId(userId)
     return self.players[userId]
 end
 
----@param playerId string
----@return Map3DPlayerType | nil
-function Map3D:GetMapPlayerByPlayerId(playerId)
-    return self.players[playerId]
-end
-
 function Map3D:OnTick()
     local timeMS = TimeMgr.GetMS()
-    -- Log:Error("MS %s", tostring(TimeMgr.GetMS()));
-    -- Log:Error("S %s", tostring(TimeMgr.GetS()));
-    -- Log:Error("NS %s", tostring(TimeMgr.GetNS()));
 
     if self.MapDbData.lastTickTimeMS <= 0 then
         self.MapDbData.lastTickTimeMS = timeMS
@@ -95,14 +98,13 @@ function Map3D:OnTick()
 
     local frameTime = timeMS - self.MapDbData.lastTickTimeMS
     if frameTime > 250 then
-        frameTime = 250 -- 防止卡顿时爆炸
+        frameTime = 250
     end
 
     self.MapDbData.lastTickTimeMS = timeMS
     self.MapDbData.durationAccumulator = self.MapDbData.durationAccumulator + frameTime
 
     while self.MapDbData.durationAccumulator >= self.MapDbData.DT_MS do
-        -- 一次固定步长的逻辑更新
         self:FixedUpdate(timeMS)
         self.MapDbData.durationAccumulator = self.MapDbData.durationAccumulator - self.MapDbData.DT_MS
     end
@@ -118,26 +120,21 @@ function Map3D:FindSpawnPoint()
 end
 
 -- 新玩家加入地图
----@param playerId string
----@param userId   string
+---@param userId string
 ---@return boolean
-function Map3D:PlayerJoinMap(playerId, userId)
-    if self.players[userId] ~= nil then
+function Map3D:PlayerJoinMap(userId)
+    if self:GetMapPlayerByUserId(userId) ~= nil then
+        Log:Error("Map3D PlayerJoinMap id %s userId %s already in map", tostring(self.MapDbData.id), tostring(userId))
         return false
     end
-
-    Log:Error(
-        "Map3D PlayerJoinMap id %s playerId %s userId %s", tostring(self.MapDbData.id), tostring(playerId),
-        tostring(userId)
-    )
 
     local spawnPoint = self:FindSpawnPoint()
 
     ---@type Map3DPlayerType
     local newMap3DPlayer = {
         userId = userId,
-        pos = spawnPoint,
-        prevPos = spawnPoint, -- 上一帧位置，用于CCD碰撞检测
+        pos = { x = spawnPoint.x, y = spawnPoint.y, z = spawnPoint.z },
+        prevPos = { x = spawnPoint.x, y = spawnPoint.y, z = spawnPoint.z },
         v = { x = 0, y = 0, z = 0 },
         gravity = 1,
         weight = 1,
@@ -145,16 +142,18 @@ function Map3D:PlayerJoinMap(playerId, userId)
         lastClientTime = "0",
         dir = { x = 0, y = 0, z = 0 },
         speedRatio = 1000,
-        maxSpeed = 0.05,      -- 最大速度 目标最大速度 px/ms 100px/s
-        accel = 1,            -- 加速度 px/ms^2
-        friction = 1.0,       -- 无摩擦
-        bodyRadius = 12,
+        -- 匹配客户端 7单位/秒
+        maxSpeed = 7,
+        accel = 1,
+        friction = 1.0,
+        -- 匹配客户端人物模型宽度
+        bodyRadius = 1.0,
+        -- 记录地面Y，用于服务器的重力模拟
+        groundY = spawnPoint.y,
         octree = nil
     }
 
     self.players[userId] = newMap3DPlayer
-
-    -- 加入地图八叉树
     Map3DOctree.OcInsert(self.map3DOctree, newMap3DPlayer)
 
     return true
@@ -164,55 +163,41 @@ end
 ---@param userId string
 ---@return boolean
 function Map3D:PlayerExitMap(userId)
-    Log:Error("Map3D PlayerExitMap id %s userId %s", tostring(self.MapDbData.id), userId)
-
     ---@type Map3DPlayerType
     local targetPlayer = self.players[userId]
     if targetPlayer ~= nil then
-        -- 将玩家从八叉树中移除
         if targetPlayer.map3DOctree ~= nil then
             Map3DOctree.RemoveItemFromList(targetPlayer.map3DOctree, targetPlayer.userId)
-
             targetPlayer.map3DOctree = nil
         end
-
         self.players[userId] = nil
         return true
     end
-
     return false
 end
 
----@param userId     string
----@param dirX       number
----@param dirY       number
----@param dirZ       number
----@param seq        integer
----@param clientTime string
+---@param userId     string  用户ID
+---@param dirX       number  x方向
+---@param dirY       number  y方向
+---@param dirZ       number  z方向
+---@param seq        integer 序列号
+---@param clientTime string  客户端时间戳
 function Map3D:MapPlayerInput(userId, dirX, dirY, dirZ, seq, clientTime)
     local map3DPlayer = self.players[userId]
-
-    if map3DPlayer == nil then
-        return
-    end
+    if map3DPlayer == nil then return end
 
     if map3DPlayer.lastSeq >= avant.UINT32_MAX then
         map3DPlayer.lastSeq = 0
     end
 
-    if seq ~= map3DPlayer.lastSeq + 1 then
-        Log:Error(
-            "userId %s map3DPlayer.lastSeq %s + 1 ~= seq %s in mapId %s", tostring(userId),
-            tostring(map3DPlayer.lastSeq), tostring(seq), tostring(self:GetMapId())
-        )
+    -- 允许跳跃的 seq 或者积压的 seq，防止丢包导致一直卡住
+    if seq <= map3DPlayer.lastSeq then
         return
     end
+    map3DPlayer.lastSeq = seq
 
-    -- 计算向量长度
     local len = math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ)
-
     if len > 0.0001 then
-        -- 服务器强制归一化
         dirX = dirX / len
         dirY = dirY / len
         dirZ = dirZ / len
@@ -225,194 +210,128 @@ function Map3D:MapPlayerInput(userId, dirX, dirY, dirZ, seq, clientTime)
     map3DPlayer.dir.x = dirX
     map3DPlayer.dir.y = dirY
     map3DPlayer.dir.z = dirZ
-    map3DPlayer.lastSeq = seq
     map3DPlayer.lastClientTime = clientTime
 end
 
 ---@param mapPlayer Map3DPlayerType
 function Map3D:PlayerPhysicsMove(mapPlayer)
-    --- 返回v的符号(1,-1,0)
-    ---@return number
-    local function sign(v)
-        if v > 0 then
-            return 1
-        elseif v < 0 then
-            return -1
-        else
-            return 0
-        end
-    end
+    -- 转为秒，避免 math.floor 截断导致位移为0
+    local dt = self:GetMapDbData().DT_MS / 1000.0
 
-    -- 计算目标速度（由方向输入 dirX、dirY、dirZ 和 最大速度 maxSpeed 决定）
-    -- 目标的X、Y、Z速度
-    local targetVx = (mapPlayer.dir.x * mapPlayer.speedRatio) * mapPlayer.maxSpeed
-    local targetVy = (mapPlayer.dir.y * mapPlayer.speedRatio) * mapPlayer.maxSpeed
-    local targetVz = (mapPlayer.dir.z * mapPlayer.speedRatio) * mapPlayer.maxSpeed
+    -- 目标速度
+    local targetVx = mapPlayer.dir.x * mapPlayer.maxSpeed
+    local targetVz = mapPlayer.dir.z * mapPlayer.maxSpeed
 
-    targetVx = math.floor(targetVx)
-    targetVy = math.floor(targetVy)
-    targetVz = math.floor(targetVz)
+    -- X/Z 轴速度平滑插值
+    local smoothFactor = 0.25
+    mapPlayer.v.x = mapPlayer.v.x + (targetVx - mapPlayer.v.x) * smoothFactor
+    mapPlayer.v.z = mapPlayer.v.z + (targetVz - mapPlayer.v.z) * smoothFactor
 
-    -- 当前速度到目标速度的差值
-    local deltaVx = targetVx - mapPlayer.v.x -- 当前vX需要朝哪个方向变化
-    local deltaVy = targetVy - mapPlayer.v.y -- 当前vY需要朝哪个方向变化
-    local deltaVz = targetVz - mapPlayer.v.z -- 当前vZ需要朝哪个方向变化
-
-    -- 每帧最大可改变的速度（加速度限制）
-    -- accel * DT = 每帧最多加多少速度
-    local maxDeltaV = mapPlayer.accel * self:GetMapDbData().DT_MS
-    maxDeltaV = math.floor(maxDeltaV)
-
-    local maxDeltaVX = math.abs(math.floor(maxDeltaV * mapPlayer.dir.x))
-    local maxDeltaVY = math.abs(math.floor(maxDeltaV * mapPlayer.dir.y))
-    local maxDeltaVZ = math.abs(math.floor(maxDeltaV * mapPlayer.dir.z))
-
-    -- X轴速度更新（带加速度限制）
-    if maxDeltaVX ~= 0 and math.abs(deltaVx) > maxDeltaVX then
-        -- 需要加速，按符号方向增加 maxDeltaV
-        mapPlayer.v.x = mapPlayer.v.x + sign(deltaVx) * maxDeltaVX
-    else
-        -- 可以直接到达目标速度
-        mapPlayer.v.x = targetVx
-    end
-
-    -- Y轴速度更新（加速度限制）
-    if maxDeltaVY ~= 0 and math.abs(deltaVy) > maxDeltaVY then
-        mapPlayer.v.y = mapPlayer.v.y + sign(deltaVy) * maxDeltaVY
-    else
-        mapPlayer.v.y = targetVy
-    end
-
-    -- Z轴速度更新（加速度限制）
-    if maxDeltaVZ ~= 0 and math.abs(deltaVz) > maxDeltaVZ then
-        mapPlayer.v.z = mapPlayer.v.z + sign(deltaVz) * maxDeltaVZ
-    else
-        mapPlayer.v.z = targetVz
-    end
-
-    -- 保存上一帧位置（用于CCD碰撞检测）
+    -- 保存上一帧位置
     mapPlayer.prevPos.x = mapPlayer.pos.x
     mapPlayer.prevPos.y = mapPlayer.pos.y
     mapPlayer.prevPos.z = mapPlayer.pos.z
 
-    -- 根据速度移动位置
-    -- mapPlayer.pos.x / mapPlayer.pos.y / mapPlayer.pos.z 是坐标，速度 * DT_MS 是位移
-    mapPlayer.pos.x = mapPlayer.pos.x + math.floor((mapPlayer.v.x * self:GetMapDbData().DT_MS) / mapPlayer.speedRatio)
-    mapPlayer.pos.y = mapPlayer.pos.y + math.floor((mapPlayer.v.y * self:GetMapDbData().DT_MS) / mapPlayer.speedRatio)
-    mapPlayer.pos.z = mapPlayer.pos.z + math.floor((mapPlayer.v.z * self:GetMapDbData().DT_MS) / mapPlayer.speedRatio)
+    -- 更新位置 (不进行 floor 截断，保留精度)
+    mapPlayer.pos.x = mapPlayer.pos.x + mapPlayer.v.x * dt
+    mapPlayer.pos.z = mapPlayer.pos.z + mapPlayer.v.z * dt
 
-    -- 摩擦力（阻尼）
-    -- 每帧速度*=friction,使速度逐渐衰减
-    mapPlayer.v.x = math.floor(mapPlayer.v.x * mapPlayer.friction)
-    mapPlayer.v.y = math.floor(mapPlayer.v.y * mapPlayer.friction)
-    mapPlayer.v.z = math.floor(mapPlayer.v.z * mapPlayer.friction)
-
-    -- 地图边界控制，限制物体不允许跑出地图
-    local mapSize = self:GetSize()
-    local playerRadius = mapPlayer.bodyRadius -- 玩家半径（防止部分穿出）
-
-    if mapPlayer.pos.x < playerRadius then mapPlayer.pos.x = playerRadius end -- 左边界
-    if mapPlayer.pos.y < playerRadius then mapPlayer.pos.y = playerRadius end -- 上边界
-    if mapPlayer.pos.z < playerRadius then mapPlayer.pos.z = playerRadius end -- 前边界
-    if mapPlayer.pos.x > mapSize.x - playerRadius then mapPlayer.pos.x = mapSize.x - playerRadius end -- 右边界
-    if mapPlayer.pos.y > mapSize.y - playerRadius then mapPlayer.pos.y = mapSize.y - playerRadius end -- 下边界
-    if mapPlayer.pos.z > mapSize.z - playerRadius then mapPlayer.pos.z = mapSize.z - playerRadius end -- 后边界
-
-    -- 从八叉树中先移除这个玩家 然后再插入 做到Octree更新
-    if mapPlayer.map3DOctree ~= nil then
-        Map3DOctree.RemoveItemFromList(mapPlayer.map3DOctree, mapPlayer.userId)
-
-        mapPlayer.map3DOctree = nil
+    -- Y轴物理模拟 (与客户端重力一致)
+    if mapPlayer.dir.y > 0 and mapPlayer.v.y == 0 and mapPlayer.pos.y <= mapPlayer.groundY then
+        mapPlayer.v.y = 10 -- 起跳初速度
     end
 
+    mapPlayer.v.y = mapPlayer.v.y - 28 * dt -- 重力加速度
+    mapPlayer.pos.y = mapPlayer.pos.y + mapPlayer.v.y * dt
+
+    if mapPlayer.pos.y <= mapPlayer.groundY then
+        mapPlayer.pos.y = mapPlayer.groundY
+        mapPlayer.v.y = 0
+    end
+
+    -- 地图边界控制
+    local mapSize = self:GetSize()
+    local playerRadius = mapPlayer.bodyRadius
+
+    if mapPlayer.pos.x < playerRadius then mapPlayer.pos.x = playerRadius end
+    if mapPlayer.pos.z < playerRadius then mapPlayer.pos.z = playerRadius end
+    if mapPlayer.pos.x > mapSize.x - playerRadius then mapPlayer.pos.x = mapSize.x - playerRadius end
+    if mapPlayer.pos.z > mapSize.z - playerRadius then mapPlayer.pos.z = mapSize.z - playerRadius end
+
+    -- 更新八叉树
+    if mapPlayer.map3DOctree ~= nil then
+        Map3DOctree.RemoveItemFromList(mapPlayer.map3DOctree, mapPlayer.userId)
+        mapPlayer.map3DOctree = nil
+    end
     Map3DOctree.OcInsert(self.map3DOctree, mapPlayer)
 end
 
 -- 玩家射击
----@param shooterId  string 发射子弹的玩家的playerId
----@param dirX       number 子弹方向向量X分量（客户端已归一化）
+---@param shooterId  string 发射子弹的玩家的userId
+---@param dirX       number 子弹方向向量X分量
 ---@param dirY       number 子弹方向向量Y分量
 ---@param dirZ       number 子弹方向向量Z分量
----@param shootDist  number 射击距离（像素单位）
+---@param shootDist  number 射击距离
 ---@param clientTime string 客户端射击时间
----@return string | nil 返回子弹ID ，如果射击失败返回nil
+---@return string | nil 返回子弹ID
 function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
-    local shooter = self:GetMapPlayerByPlayerId(shooterId)
-    if shooter == nil then
+    local shooter = self:GetMapPlayerByUserId(shooterId)
+    if shooter == nil then return nil end
+
+    if shootDist <= 0 or shootDist > self:GetMaxShootDist() then
         return nil
     end
 
-    -- 验证射击距离（服务器端二次验证）
-    if shootDist < 0 or shootDist > self:GetMaxShootDist() then
-        Log:Error(
-            "Map3D PlayerShoot 射击距离无效 shooterId %s shootDist %s max %s", tostring(shooterId),
-            tostring(shootDist), tostring(self:GetMaxShootDist())
-        )
-        return nil
-    end
-
-    -- 服务器验证并归一化方向向量
     local len = math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ)
-    if len > 0.0001 then
-        -- 使用客户端的方向向量，但确保其方向正确
-        dirX = dirX / len
-        dirY = dirY / len
-        dirZ = dirZ / len
-    else
-        Log:Error("Map3D PlayerShoot 方向向量无效 shooterId %s", tostring(shooterId))
+
+    if len < 0.0001 then
         return nil
     end
+    dirX = dirX / len
+    dirY = dirY / len
+    dirZ = dirZ / len
 
-    -- 创建子弹
     self.nextBulletIdSeq = self.nextBulletIdSeq + 1
-    local bulletId = tostring(self.nextBulletIdSeq) -- 使用唯一ID
+    local bulletId = tostring(self.nextBulletIdSeq)
     local now = TimeMgr.GetMS()
 
-    -- 子弹初始位置：从玩家位置出发，沿方向向量移动 shootDist 距离
+    -- 起点加上眼睛高度
+    local muzzleOffset = shooter.bodyRadius
+    local startPosX = shooter.pos.x + dirX * muzzleOffset
+    local startPosY = shooter.pos.y + 2.0 + dirY * muzzleOffset
+    local startPosZ = shooter.pos.z + dirZ * muzzleOffset
+
+    local bulletSpeedPerMs = self:GetBulletSpeedRatio() / 1000
+    local distLifeTime = math.floor(shootDist / bulletSpeedPerMs)
+    local lifeTime = math.min(self:GetBulletLifeTime(), distLifeTime)
+    lifeTime = math.max(self:GetMapDbData().DT_MS, lifeTime)
+
     ---@type Map3DBulletType
     local newBullet = {
         bulletId = bulletId,
         shooterId = shooterId,
-        pos = {
-            x = shooter.pos.x + dirX * shootDist,
-            y = shooter.pos.y + dirY * shootDist,
-            z = shooter.pos.z + dirZ * shootDist
-        },
-        prevPos = { -- 上一帧位置，用于CCD碰撞检测
-            x = shooter.pos.x + dirX * shootDist,
-            y = shooter.pos.y + dirY * shootDist,
-            z = shooter.pos.z + dirZ * shootDist
-        },
+        pos = { x = startPosX, y = startPosY, z = startPosZ },
+        prevPos = { x = startPosX, y = startPosY, z = startPosZ },
         dir = { x = dirX, y = dirY, z = dirZ },
-        lifeTime = 1000, -- 1秒存活时间
+        lifeTime = lifeTime,
         spawnTime = now,
-        speedRatio = 10000,
+        speedRatio = self:GetBulletSpeedRatio(),
         collisionRadius = self:GetBulletCollisionRadius(),
         isExpired = false
     }
 
-    -- Log:Error(
-    --     "创建子弹 Map3D PlayerShoot shooterId %s bulletId %s pos (%s,%s,%s) dir (%s,%s,%s) shootDist %s spawnTime %s",
-    --     tostring(shooterId), tostring(bulletId), tostring(newBullet.pos.x), tostring(newBullet.pos.y),
-    --     tostring(newBullet.pos.z), tostring(newBullet.dir.x), tostring(newBullet.dir.y),
-    --     tostring(newBullet.dir.z), tostring(shootDist), tostring(now)
-    -- )
-
     self.bullets[bulletId] = newBullet
 
-    -- 立即广播子弹给周围所有玩家（避免延迟）
+    -- 广播给周围玩家
     local MsgHandler = require("MsgHandlerLogic")
     local PlayerMgr = require("PlayerMgrLogic")
-    local shooterPlayer = PlayerMgr.GetPlayerByUserId(shooterId)
-
-    -- 查询子弹初始位置周围的玩家
     local range = {
-        x = newBullet.pos.x - 50000,
-        y = newBullet.pos.y - 50000,
-        z = newBullet.pos.z - 50000,
-        w = 100000,
-        h = 100000,
-        d = 100000
+        x = newBullet.pos.x - 10000,
+        y = newBullet.pos.y - 10000,
+        z = newBullet.pos.z - 10000,
+        w = 20000,
+        h = 20000,
+        d = 20000
     }
     local list = {}
     local seen = {}
@@ -425,14 +344,13 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
         x = math.floor(newBullet.pos.x),
         y = math.floor(newBullet.pos.y),
         z = math.floor(newBullet.pos.z),
-        dirX = math.floor(newBullet.dir.x),
-        dirY = math.floor(newBullet.dir.y),
-        dirZ = math.floor(newBullet.dir.z),
-        lifeTime = "2000",
+        dirX = math.floor(newBullet.dir.x * 10000),
+        dirY = math.floor(newBullet.dir.y * 10000),
+        dirZ = math.floor(newBullet.dir.z * 10000),
+        lifeTime = tostring(newBullet.lifeTime),
         spawnTime = tostring(now)
     }
 
-    -- 向所有周围玩家广播子弹（包括射击者）
     for _, pl in pairs(list) do
         local player = PlayerMgr.GetPlayerByUserId(pl.userId)
         if player ~= nil then
@@ -459,16 +377,13 @@ function Map3D:UpdateBullets()
             goto continue
         end
 
-        -- 检查子弹是否过期
         if timeMS - bullet.spawnTime > bullet.lifeTime then
             bullet.isExpired = true
             toRemove[#toRemove + 1] = bulletId
             goto continue
         end
 
-        -- 移动子弹
         local speed = bullet.speedRatio / 1000 * self:GetMapDbData().DT_MS
-        -- 保存上一帧位置用于CCD碰撞检测
         bullet.prevPos.x = bullet.pos.x
         bullet.prevPos.y = bullet.pos.y
         bullet.prevPos.z = bullet.pos.z
@@ -476,29 +391,15 @@ function Map3D:UpdateBullets()
         bullet.pos.y = bullet.pos.y + bullet.dir.y * speed
         bullet.pos.z = bullet.pos.z + bullet.dir.z * speed
 
-        -- Log:Error(
-        --     "子弹移动 Map3D UpdateBullets bulletId %s pos (%s,%s,%s) dir (%s,%s,%s) speed %s", tostring(bulletId),
-        --     tostring(bullet.pos.x), tostring(bullet.pos.y), tostring(bullet.pos.z), tostring(bullet.dir.x),
-        --     tostring(bullet.dir.y), tostring(bullet.dir.z), tostring(speed)
-        -- )
-
-        -- 碰撞检测（使用CCD检测子弹运动轨迹与玩家的交叉）
         for userId, player in pairs(self.players) do
             if userId ~= bullet.shooterId then
-                -- 使用CCD碰撞检测：计算子弹轨迹线段到玩家位置的最近距离
                 local hit, hitRatio = self:CheckBulletPlayerCCD(bullet, player)
                 if hit then
-                    -- 计算实际击中位置（插值）
                     local hitPos = {
                         x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * hitRatio,
                         y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * hitRatio,
                         z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * hitRatio
                     }
-                    -- 击中玩家
-                    Log:Error(
-                        "Map3D UpdateBullets 子弹击中玩家 bulletId %s targetId %s collisionRatio %s hitPos (%s,%s,%s)",
-                        bulletId, userId, tostring(hitRatio), tostring(hitPos.x), tostring(hitPos.y), tostring(hitPos.z)
-                    )
                     self:NotifyPlayerHit(bulletId, userId, hitPos)
                     bullet.isExpired = true
                     toRemove[#toRemove + 1] = bulletId
@@ -507,18 +408,16 @@ function Map3D:UpdateBullets()
             end
         end
 
-        -- 通知所有玩家子弹位置
         local range = {
-            x = bullet.pos.x - 50000,
-            y = bullet.pos.y - 50000,
-            z = bullet.pos.z - 50000,
-            w = 100000,
-            h = 100000,
-            d = 100000
+            x = bullet.pos.x - 10000,
+            y = bullet.pos.y - 10000,
+            z = bullet.pos.z - 10000,
+            w = 20000,
+            h = 20000,
+            d = 20000
         }
         local list = {}
         local seen = {}
-        -- 查询子弹位置所在周围一定范围内的玩家
         Map3DOctree.OcQuery(self.map3DOctree, range, list, seen)
 
         if #list ~= 0 then
@@ -529,9 +428,9 @@ function Map3D:UpdateBullets()
                 x = math.floor(bullet.pos.x),
                 y = math.floor(bullet.pos.y),
                 z = math.floor(bullet.pos.z),
-                dirX = math.floor(bullet.dir.x),
-                dirY = math.floor(bullet.dir.y),
-                dirZ = math.floor(bullet.dir.z),
+                dirX = math.floor(bullet.dir.x * 10000),
+                dirY = math.floor(bullet.dir.y * 10000),
+                dirZ = math.floor(bullet.dir.z * 10000),
                 lifeTime = tostring(bullet.lifeTime - (timeMS - bullet.spawnTime)),
                 spawnTime = tostring(bullet.spawnTime)
             }
@@ -550,66 +449,45 @@ function Map3D:UpdateBullets()
         ::continue::
     end
 
-    -- 移除过期子弹
     for _, bulletId in ipairs(toRemove) do
         self.bullets[bulletId] = nil
     end
 end
 
---- CCD碰撞检测：计算子弹运动轨迹线段到玩家位置的最近距离
---- 使用参数化直线距离公式：
---- 子弹轨迹: B(t) = B0 + t * (B1 - B0), t∈[0,1]
---- 玩家位置: P
---- 最近点满足: (B(t) - P) · (B1 - B0) = 0
----@param bullet Map3DBulletType 子弹对象
----@param player Map3DPlayerType 玩家对象
----@return boolean 是否碰撞
----@return number 碰撞比例t （0-1），仅碰撞时返回
+--- CCD碰撞检测
 function Map3D:CheckBulletPlayerCCD(bullet, player)
-    -- 子弹运动向量
     local dx = bullet.pos.x - bullet.prevPos.x
     local dy = bullet.pos.y - bullet.prevPos.y
     local dz = bullet.pos.z - bullet.prevPos.z
 
-    -- 子弹起点到玩家的向量
+    -- 玩家碰撞中心点在身体中部
+    local playerCenterY = player.pos.y + 1.0
+
     local px = player.pos.x - bullet.prevPos.x
-    local py = player.pos.y - bullet.prevPos.y
+    local py = playerCenterY - bullet.prevPos.y
     local pz = player.pos.z - bullet.prevPos.z
 
-    -- 子弹运动向量的模平方
     local dirLenSq = dx * dx + dy * dy + dz * dz
     if dirLenSq < 0.0001 then
-        -- 子弹没动，退化为点到点距离检测
         local dist = math.sqrt(px * px + py * py + pz * pz)
         local collisionRadius = bullet.collisionRadius + player.bodyRadius
-        return dist < collisionRadius, 0
+        return dist <= collisionRadius, 0
     end
 
-    -- 参数t = (P - B0) · (B1 - B0) / |B1 - B0|²
     local t = (px * dx + py * dy + pz * dz) / dirLenSq
-
-    -- 限制t在[0, 1]之间（只检测线段范围内）
     t = math.max(0, math.min(1, t))
 
-    -- 最近点在子弹轨迹上的位置
     local closestX = bullet.prevPos.x + t * dx
     local closestY = bullet.prevPos.y + t * dy
     local closestZ = bullet.prevPos.z + t * dz
 
-    -- 最近点到玩家的距离
     local distX = player.pos.x - closestX
-    local distY = player.pos.y - closestY
+    local distY = playerCenterY - closestY
     local distZ = player.pos.z - closestZ
-    local dist = math.sqrt(distX * distX + distY * distY + distZ * distZ)
+    local distSq = distX * distX + distY * distY + distZ * distZ
 
-    -- 碰撞检测：距离小于玩家半径 + 子弹半径
     local collisionRadius = bullet.collisionRadius + player.bodyRadius
-    if dist < collisionRadius then
-        return true, t
-    end
-
-    -- 也可以用扩大的碰撞盒提高手感
-    if dist < (collisionRadius + 20) then
+    if distSq <= collisionRadius * collisionRadius then
         return true, t
     end
 
@@ -617,24 +495,18 @@ function Map3D:CheckBulletPlayerCCD(bullet, player)
 end
 
 -- 通知玩家被击中
----@param bulletId string 子弹ID
----@param targetId string 被击中玩家的userId
----@param pos      Vec3f  子弹位置
 function Map3D:NotifyPlayerHit(bulletId, targetId, pos)
     local MsgHandler = require("MsgHandlerLogic")
     local PlayerMgr = require("PlayerMgrLogic")
 
     local targetPlayer = PlayerMgr.GetPlayerByUserId(targetId)
-    if targetPlayer == nil then
-        return
-    end
+    if targetPlayer == nil then return end
 
-    -- 发送击中通知
     ---@type ProtoLua_ProtoCSMap3DNotifyHitPlayer
     local hitProto = {
         bulletId = bulletId,
         targetId = targetId,
-        damage = 100, -- 伤害值
+        damage = 100,
         targetX = math.floor(pos.x),
         targetY = math.floor(pos.y),
         targetZ = math.floor(pos.z)
@@ -644,12 +516,11 @@ function Map3D:NotifyPlayerHit(bulletId, targetId, pos)
         hitProto
     )
 
-    -- 发送受伤通知（包含新血量）
     ---@type ProtoLua_ProtoCSMap3DNotifyPlayerHurt
     local hurtProto = {
         targetId = targetId,
-        hp = 90,     -- 伤害100，血量90
-        maxHp = 200, -- 最大血量
+        hp = 90,
+        maxHp = 200,
         damage = 100,
         x = math.floor(pos.x),
         y = math.floor(pos.y),
@@ -666,15 +537,12 @@ function Map3D:FixedUpdate(timeMS)
     local MsgHandler = require("MsgHandlerLogic")
     local PlayerMgr = require("PlayerMgrLogic")
 
-    -- Log:Error("Map3D:FixedUpdate mapId %s", tostring(self.MapDbData.id));
     for userId, mapPlayer in pairs(self.players) do
         self:PlayerPhysicsMove(mapPlayer)
     end
 
-    -- 更新子弹
     self:UpdateBullets()
 
-    -- 为地图中每个玩家同步状态 PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA
     for userId, mapPlayer in pairs(self.players) do
         local range = {
             x = mapPlayer.pos.x - 600,
@@ -693,22 +561,17 @@ function Map3D:FixedUpdate(timeMS)
         for _, o in ipairs(list) do
             ---@type Map3DPlayerType
             local pl = self.players[o.userId]
-
             playersPayload[#playersPayload + 1] = {
                 userId = pl.userId,
-                x = math.floor(pl.pos.x) or 0,
-                y = math.floor(pl.pos.y) or 0,
-                z = math.floor(pl.pos.z) or 0,
-                vX = math.floor(pl.v.x) or 0,
-                vY = math.floor(pl.v.y) or 0,
-                vZ = math.floor(pl.v.z) or 0,
-                lastSeq = pl.lastSeq or 0,
+                x = math.floor(pl.pos.x),
+                y = math.floor(pl.pos.y),
+                z = math.floor(pl.pos.z),
+                vX = math.floor(pl.v.x),
+                vY = math.floor(pl.v.y),
+                vZ = math.floor(pl.v.z),
+                lastSeq = pl.lastSeq,
                 lastClientTime = pl.lastClientTime
             }
-        end
-
-        if #playersPayload == 0 then
-            Log:Error('players playersPayload len %d', #playersPayload)
         end
 
         ---@type ProtoLua_ProtoCSMap3DNotifyStateData

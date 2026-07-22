@@ -243,8 +243,7 @@
             position: fixed;
             inset: 0;
             pointer-events: none;
-            background: radial-gradient(ellipse at center,
-                    transparent 50%, rgba(230, 57, 70, .5));
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(230, 57, 70, .5));
             opacity: 0;
             z-index: 60;
         }
@@ -253,7 +252,6 @@
             display: none !important;
         }
 
-        /* ===== 实时坐标监控面板 ===== */
         #coordPanel {
             position: fixed;
             top: 12px;
@@ -318,7 +316,6 @@
 </head>
 
 <body>
-
     <div id="ui">
         <div style="font-weight:bold;margin-bottom:4px;color:#ff5050;">AVANT FPS</div>
         <input id="wsUrl" value="ws://127.0.0.1:20026">
@@ -331,7 +328,6 @@
         <pre id="log">未连接</pre>
     </div>
 
-    <!-- 实时坐标监控面板 -->
     <div id="coordPanel">
         <div class="cp-title">实时坐标监控</div>
         <div class="cp-self" id="cpSelfLocal"><span class="lbl">本机(预测):</span> --</div>
@@ -360,7 +356,6 @@
     <div id="hint">WASD 移动 · Space 跳跃 · 鼠标瞄准 · 点击射击 · ESC 解锁</div>
     <div id="dmgflash"></div>
 
-    <!-- 初始添加 hidden 类，避免遮挡登录界面 -->
     <div id="blocker" class="hidden">
         <div class="card">
             <h1>AVANT</h1>
@@ -373,67 +368,35 @@
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
     <script>
-        /* ============================================================
-         * AVANT FPS — 单文件 3D 射击客户端
-         * 修复：地面 Y 基准改为服务器出生点 Y=500000 (GROUND_Y)
-         *       地面/网格/障碍物/光照/落地判定统一以 GROUND_Y 为基准
-         *       相机与玩家模型直接使用服务器下发的绝对 Y 坐标
-         * ============================================================ */
-
-        /* ---------- Proto 定义（与原版完全一致） ---------- */
         const protoText = `
 syntax="proto3";
 package avant;
 enum ProtoCmd{
-    PROTO_CMD_CS_REQ_EXAMPLE = 0;
-    PROTO_CMD_CS_RES_EXAMPLE = 1;
-    PROTO_CMD_TUNNEL_MAIN2WORKER_NEW_CLIENT = 2;
-    PROTO_CMD_TUNNEL_PACKAGE = 3;
-    PROTO_CMD_TUNNEL_CLIENT_FORWARD_MESSAGE = 4;
-    PROTO_CMD_TUNNEL_WEBSOCKET_BROADCAST = 5;
-    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_NEW_CLIENT_CONNECTION = 6;
-    PROTO_CMD_TUNNEL_OTHER2WORKER_TEST = 7;
-    PROTO_CMD_LUA_TEST = 8;
-    PROTO_CMD_IPC_STREAM_AUTH_HANDSHAKE = 9;
-    PROTO_CMD_TUNNEL_WORKER2OTHER_LUAVM = 10;
-    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN = 11;
-    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_CLOSE_CLIENT_CONNECTION = 12;
-    PROTO_CMD_TUNNEL_OTHERLUAVM2WORKER_CLOSE_CLIENT_CONNECTION = 13;
-    PROTO_CMD_UDP_SAFESTOP_REQ = 14;
-    PROTO_CMD_UDP_SAFESTOP_RES = 15;
-    PROTO_CMD_CS_REQ_LOGIN = 2001;
-    PROTO_CMD_CS_RES_LOGIN = 2002;
-    PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA = 2003;
-    PROTO_CMD_CS_REQ_MAP_PING = 2004;
-    PROTO_CMD_CS_RES_MAP_PONG = 2005;
-    PROTO_CMD_CS_REQ_MAP_INPUT = 2006;
-    PROTO_CMD_CS_MAP_NOTIFY_STATE_DATA = 2007;
-    PROTO_CMD_CS_MAP_ENTER_REQ = 2008;
-    PROTO_CMD_CS_MAP_ENTER_RES = 2009;
-    PROTO_CMD_CS_MAP_LEAVE_REQ = 2010;
-    PROTO_CMD_CS_MAP_LEAVE_RES = 2011;
-    PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA = 2012;
-    PROTO_CMD_CS_REQ_MAP3D_PING = 2013;
-    PROTO_CMD_CS_RES_MAP3D_PONG = 2014;
-    PROTO_CMD_CS_REQ_MAP3D_INPUT = 2015;
-    PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA = 2016;
-    PROTO_CMD_CS_MAP3D_ENTER_REQ = 2017;
-    PROTO_CMD_CS_MAP3D_ENTER_RES = 2018;
-    PROTO_CMD_CS_MAP3D_LEAVE_REQ = 2019;
-    PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
-    PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021;
-    PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
-    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023;
-    PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
+    PROTO_CMD_CS_REQ_EXAMPLE = 0; PROTO_CMD_CS_RES_EXAMPLE = 1;
+    PROTO_CMD_TUNNEL_MAIN2WORKER_NEW_CLIENT = 2; PROTO_CMD_TUNNEL_PACKAGE = 3;
+    PROTO_CMD_TUNNEL_CLIENT_FORWARD_MESSAGE = 4; PROTO_CMD_TUNNEL_WEBSOCKET_BROADCAST = 5;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_NEW_CLIENT_CONNECTION = 6; PROTO_CMD_TUNNEL_OTHER2WORKER_TEST = 7;
+    PROTO_CMD_LUA_TEST = 8; PROTO_CMD_IPC_STREAM_AUTH_HANDSHAKE = 9;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_LUAVM = 10; PROTO_CMD_TUNNEL_OTHERLUAVM2WORKERCONN = 11;
+    PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_CLOSE_CLIENT_CONNECTION = 12; PROTO_CMD_TUNNEL_OTHERLUAVM2WORKER_CLOSE_CLIENT_CONNECTION = 13;
+    PROTO_CMD_UDP_SAFESTOP_REQ = 14; PROTO_CMD_UDP_SAFESTOP_RES = 15;
+    PROTO_CMD_CS_REQ_LOGIN = 2001; PROTO_CMD_CS_RES_LOGIN = 2002;
+    PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA = 2003; PROTO_CMD_CS_REQ_MAP_PING = 2004;
+    PROTO_CMD_CS_RES_MAP_PONG = 2005; PROTO_CMD_CS_REQ_MAP_INPUT = 2006;
+    PROTO_CMD_CS_MAP_NOTIFY_STATE_DATA = 2007; PROTO_CMD_CS_MAP_ENTER_REQ = 2008;
+    PROTO_CMD_CS_MAP_ENTER_RES = 2009; PROTO_CMD_CS_MAP_LEAVE_REQ = 2010;
+    PROTO_CMD_CS_MAP_LEAVE_RES = 2011; PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA = 2012;
+    PROTO_CMD_CS_REQ_MAP3D_PING = 2013; PROTO_CMD_CS_RES_MAP3D_PONG = 2014;
+    PROTO_CMD_CS_REQ_MAP3D_INPUT = 2015; PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA = 2016;
+    PROTO_CMD_CS_MAP3D_ENTER_REQ = 2017; PROTO_CMD_CS_MAP3D_ENTER_RES = 2018;
+    PROTO_CMD_CS_MAP3D_LEAVE_REQ = 2019; PROTO_CMD_CS_MAP3D_LEAVE_RES = 2020;
+    PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021; PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
+    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023; PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
     PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
-    PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;
-    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
-    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002;
-    PROTO_CMD_CS_REQ_CREATE_USER = 3003;
-    PROTO_CMD_CS_RES_CREATE_USER = 3004;
-    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
-    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_RES = 3006;
-    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_REQ = 3007;
+    PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000; PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
+    PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002; PROTO_CMD_CS_REQ_CREATE_USER = 3003;
+    PROTO_CMD_CS_RES_CREATE_USER = 3004; PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
+    PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_RES = 3006; PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_REQ = 3007;
     PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_LOGIN_RES = 3008;
 }
 message ProtoPackage{ ProtoCmd cmd=1; bytes protocol=2; }
@@ -446,25 +409,11 @@ message ProtoCSMap3DEnterReq{ uint32 mapId=1; }
 message ProtoCSMap3DEnterRes{ int32 ret=1; uint32 mapId=2; }
 message ProtoCSReqCreateUser{ string userId=1; string password=2; }
 message ProtoCSResCreateUser{ int32 ret=1; string userId=2; string password=3; uint64 userRecordID=4; }
-message ProtoCSReqMap3DShoot{
-  string shooterId=1; int32 dirX=2; int32 dirY=3; int32 dirZ=4;
-  int32 shootDist=5; uint64 clientTime=6;
-}
+message ProtoCSReqMap3DShoot{ string shooterId=1; int32 dirX=2; int32 dirY=3; int32 dirZ=4; int32 shootDist=5; uint64 clientTime=6; }
 message ProtoCSResMap3DShoot{ int32 ret=1; int32 damage=2; }
-message ProtoCSMap3DNotifyBullet{
-  string bulletId=1; string shooterId=2;
-  int32 x=3; int32 y=4; int32 z=5;
-  int32 dirX=6; int32 dirY=7; int32 dirZ=8;
-  uint64 lifeTime=9; uint64 spawnTime=10;
-}
-message ProtoCSMap3DNotifyHitPlayer{
-  string bulletId=1; string targetId=2; int32 damage=3;
-  int32 targetX=4; int32 targetY=5; int32 targetZ=6;
-}
-message ProtoCSMap3DNotifyPlayerHurt{
-  string targetId=1; int32 hp=2; int32 maxHp=3; int32 damage=4;
-  int32 x=5; int32 y=6; int32 z=7;
-}
+message ProtoCSMap3DNotifyBullet{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; int32 dirX=6; int32 dirY=7; int32 dirZ=8; uint64 lifeTime=9; uint64 spawnTime=10; }
+message ProtoCSMap3DNotifyHitPlayer{ string bulletId=1; string targetId=2; int32 damage=3; int32 targetX=4; int32 targetY=5; int32 targetZ=6; }
+message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp=3; int32 damage=4; int32 x=5; int32 y=6; int32 z=7; }
 `;
 
         const root = protobuf.parse(protoText).root;
@@ -482,27 +431,21 @@ message ProtoCSMap3DNotifyPlayerHurt{
         const T_Bullet = root.lookupType("avant.ProtoCSMap3DNotifyBullet");
         const T_Hit = root.lookupType("avant.ProtoCSMap3DNotifyHitPlayer");
         const T_Hurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt");
-        const SHOOT_DIST = 0;
-        const DEBUG_STATE = false; // 设为 true 可打印每次 State 回包明细
 
-        /* ---------- 关键常量：服务器出生点 Y 基准 ---------- */
-        // 服务器以 Y=500000 作为出生/地面，客户端以此值为地面基准
+        const SHOOT_DIST = 200;
         const GROUND_Y = 500000;
 
-        /* ---------- 全局状态 ---------- */
-        const players = new Map();   // userId -> { group, mesh, label, prevPos, targetPos, updateTime }
-        const bullets = new Map();   // bulletId -> { mesh, trail, points, born }
+        const players = new Map();
+        const bullets = new Map();
         let selfId = null;
         let lastSeq = 0;
         let kills = 0, deaths = 0;
         let myHp = 100, myMaxHp = 100;
 
-        /* ---------- UI / 日志 ---------- */
         const logEl = document.getElementById("log");
         function log(...a) {
             const msg = new Date().toLocaleTimeString() + " " + a.join(" ");
             logEl.textContent = msg + "\n" + logEl.textContent;
-            console.log(msg); // 同时输出到控制台，方便排查
             if (logEl.textContent.length > 3000) logEl.textContent = "";
         }
         function killfeed(text) {
@@ -512,47 +455,34 @@ message ProtoCSMap3DNotifyPlayerHurt{
             setTimeout(() => d.remove(), 4000);
         }
 
-        /* ---------- WebSocket ---------- */
         let ws = null;
         function sendInner(type, obj, cmd) {
-            if (!ws || ws.readyState !== 1) { log("WebSocket 未连接"); return; }
+            if (!ws || ws.readyState !== 1) return;
             const inner = type.encode(type.create(obj)).finish();
             const pkg = ProtoPackage.encode(ProtoPackage.create({ cmd, protocol: inner })).finish();
             ws.send(pkg);
         }
 
-        /* ---------- 协议处理 ---------- */
         function handlePkg(msg) {
             switch (msg.cmd) {
                 case Cmd.PROTO_CMD_CS_RES_LOGIN: log("✓ 登录成功"); break;
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA: {
                     const d = T_Init.decode(msg.protocol);
-                    selfId = String(d.userId); // 统一转为字符串
+                    selfId = String(d.userId);
                     if (!players.has(selfId)) {
                         const p = createPlayerMesh(true, selfId);
                         players.set(selfId, p);
                     }
                     const me = players.get(selfId);
-                    // 直接使用服务器下发的绝对坐标（含 Y=500000）
                     me.group.position.set(d.x, d.y, d.z);
                     me.prevPos.set(d.x, d.y, d.z);
                     me.targetPos.set(d.x, d.y, d.z);
                     localPos.set(d.x, d.y, d.z);
                     serverPos.set(d.x, d.y, d.z);
-                    log("✓ 初始化玩家:", selfId, `(${d.x},${d.y},${d.z})`);
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA: {
                     const s = T_State.decode(msg.protocol);
-
-                    // --- 调试输出：确认数据到达（DEBUG_STATE 控制开关） ---
-                    if (DEBUG_STATE) {
-                        console.log("[State Update] Count:", s.players.length);
-                        const pList = s.players.map(p => `${p.userId}(${p.x},${p.z})`).join(", ");
-                        if (pList) console.log("  Players:", pList);
-                    }
-                    // ------------------------------------------------------
-
                     document.getElementById("online").textContent = s.players.length;
                     const seen = new Set();
                     s.players.forEach(p => {
@@ -562,43 +492,28 @@ message ProtoCSMap3DNotifyPlayerHurt{
                         if (!m) {
                             m = createPlayerMesh(pId === selfId, pId);
                             players.set(pId, m);
-                            log("检测到新玩家:", pId);
                         }
-                        // 更新插值终点：直接使用服务器下发的绝对坐标（含 Y）
                         m.targetPos.set(p.x, p.y, p.z);
                         m.updateTime = performance.now();
-
-                        if (pId === selfId) {
-                            serverPos.set(p.x, p.y, p.z);
-                        }
+                        if (pId === selfId) serverPos.set(p.x, p.y, p.z);
                     });
-                    // 移除离开的玩家
                     players.forEach((m, id) => {
                         if (!seen.has(id) && id !== selfId) {
                             scene.remove(m.group);
                             players.delete(id);
-                            log("玩家离开:", id);
                         }
                     });
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES:
-                    log("✓ 进入3D地图成功");
                     document.getElementById("blocker").classList.remove("hidden");
                     break;
-                case Cmd.PROTO_CMD_CS_RES_CREATE_USER: {
-                    const r = T_CreateR.decode(msg.protocol);
-                    const o = T_CreateR.toObject(r, { longs: String });
-                    log(`创建账号返回 ${JSON.stringify(o)}`);
-                    break;
-                }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
                     const b = T_Bullet.decode(msg.protocol);
                     handleBullet(b); break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER: {
                     const h = T_Hit.decode(msg.protocol);
-                    log(`💥 击中 ${h.targetId} 伤害 ${h.damage}`);
                     killfeed(`你命中 ${h.targetId} → -${h.damage}HP`);
                     createHitEffect(h.targetX, h.targetY, h.targetZ);
                     break;
@@ -608,13 +523,11 @@ message ProtoCSMap3DNotifyPlayerHurt{
                     const targetIdStr = String(h.targetId);
                     if (targetIdStr === selfId) {
                         myHp = h.hp; myMaxHp = h.maxHp;
-                        updateHpUI();
-                        flashDamage();
+                        updateHpUI(); flashDamage();
                         if (h.hp <= 0) { deaths++; document.getElementById("deaths").textContent = deaths; }
                     }
                     const pm = players.get(targetIdStr);
                     if (pm) showDamageNumber(h.x, h.y + 3, h.z, h.damage);
-                    log(`⚠️ ${targetIdStr} 受伤 ${h.damage}  HP ${h.hp}/${h.maxHp}`);
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_RES_MAP3D_SHOOT: {
@@ -622,13 +535,11 @@ message ProtoCSMap3DNotifyPlayerHurt{
                     if (r.damage > 0) { kills++; document.getElementById("kills").textContent = kills; }
                     break;
                 }
-                default: break;
             }
         }
 
-        /* ---------- 按钮 ---------- */
         document.getElementById("btnConnect").onclick = () => {
-            if (ws && ws.readyState === 1) { log("已连接"); return; }
+            if (ws && ws.readyState === 1) return;
             ws = new WebSocket(document.getElementById("wsUrl").value);
             ws.binaryType = "arraybuffer";
             ws.onopen = () => log("✓ WS 已连接");
@@ -638,33 +549,19 @@ message ProtoCSMap3DNotifyPlayerHurt{
                 try {
                     const msg = ProtoPackage.decode(new Uint8Array(ev.data));
                     handlePkg(msg);
-                } catch (err) {
-                    log("✗ 解包失败:", err.message || err);
-                }
+                } catch (err) { log("✗ 解包失败:", err.message || err); }
             };
         };
         document.getElementById("btnLogin").onclick = () => {
-            sendInner(T_Login, {
-                userId: document.getElementById("userId").value,
-                password: document.getElementById("password").value
-            }, Cmd.PROTO_CMD_CS_REQ_LOGIN);
-            log("发送登录请求");
+            sendInner(T_Login, { userId: document.getElementById("userId").value, password: document.getElementById("password").value }, Cmd.PROTO_CMD_CS_REQ_LOGIN);
         };
         document.getElementById("btnEnter").onclick = () => {
             sendInner(T_Enter, { mapId: 4 }, Cmd.PROTO_CMD_CS_MAP3D_ENTER_REQ);
-            log("请求进入地图");
         };
         document.getElementById("btnCreateUser").onclick = () => {
-            sendInner(T_CreateU, {
-                userId: document.getElementById("userId").value,
-                password: document.getElementById("password").value
-            }, Cmd.PROTO_CMD_CS_REQ_CREATE_USER);
-            log("发送注册请求");
+            sendInner(T_CreateU, { userId: document.getElementById("userId").value, password: document.getElementById("password").value }, Cmd.PROTO_CMD_CS_REQ_CREATE_USER);
         };
 
-        /* ============================================================
-         * Three.js 场景
-         * ============================================================ */
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a1322);
         scene.fog = new THREE.Fog(0x0a1322, 80, 400);
@@ -677,10 +574,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        /* ---------- 光照 ---------- */
         scene.add(new THREE.HemisphereLight(0x88aaff, 0x223344, 0.7));
-
-        // 太阳光：以地面 GROUND_Y 为基准定位，避免光照打到 Y=0 处
         const sun = new THREE.DirectionalLight(0xffeecc, 1.0);
         sun.position.set(60, GROUND_Y + 120, 40); sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -688,23 +582,19 @@ message ProtoCSMap3DNotifyPlayerHurt{
         sun.shadow.camera.top = 120; sun.shadow.camera.bottom = -120;
         sun.shadow.camera.near = 1; sun.shadow.camera.far = 400;
         scene.add(sun);
-
-        // 让方向光的目标位于地面，保证阴影投射到 GROUND_Y 平面上
         const sunTarget = new THREE.Object3D();
         sunTarget.position.set(0, GROUND_Y, 0);
         scene.add(sunTarget);
         sun.target = sunTarget;
-
         scene.add(new THREE.AmbientLight(0xffffff, 0.25));
 
-        /* ---------- 地面 ---------- */
         const groundTex = makeGroundTexture();
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(2000, 2000),
             new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95, metalness: 0.0 })
         );
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = GROUND_Y;   // 地面平移到服务器出生点 Y
+        ground.position.y = GROUND_Y;
         ground.receiveShadow = true;
         scene.add(ground);
 
@@ -721,9 +611,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
             t.repeat.set(40, 40); return t;
         }
 
-        /* ---------- 障碍物 / 掩体 ---------- */
         const obstacles = [];
-        // yRel: 相对地面的中心 Y；内部再叠加 GROUND_Y 得到世界坐标
         function addBox(x, yRel, z, w, h, d, color) {
             const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
                 new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
@@ -738,12 +626,10 @@ message ProtoCSMap3DNotifyPlayerHurt{
         }
         addBox(0, 1.5, 0, 4, 3, 4, 0x2a4a6a);
 
-        // 网格地面辅助线，同样平移到 GROUND_Y
         const gridHelper = new THREE.GridHelper(400, 80, 0x1a3a5c, 0x0f243f);
         gridHelper.position.y = GROUND_Y;
         scene.add(gridHelper);
 
-        /* ---------- 第一人称视图模型：枪 ---------- */
         const viewModel = new THREE.Group();
         camera.add(viewModel);
         scene.add(camera);
@@ -769,61 +655,39 @@ message ProtoCSMap3DNotifyPlayerHurt{
         const flash = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), flashMat);
         flash.position.copy(muzzle.position); viewModel.add(flash);
         let flashTime = 0;
-
         viewModel.position.set(0.18, -0.18, 0);
 
-        /* ---------- 玩家模型（其他人可见） ---------- */
         function createPlayerMesh(isSelf, id) {
             const group = new THREE.Group();
-            group.name = "player_" + id; // 设置名字方便调试
-
             const pBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.0, 6, 12),
-                new THREE.MeshStandardMaterial({
-                    color: isSelf ? 0x20c997 : 0x3aa0ff,
-                    emissive: isSelf ? 0x0a4d3a : 0x1a5080, emissiveIntensity: 0.25, roughness: 0.6
-                }));
+                new THREE.MeshStandardMaterial({ color: isSelf ? 0x20c997 : 0x3aa0ff, emissive: isSelf ? 0x0a4d3a : 0x1a5080, emissiveIntensity: 0.25, roughness: 0.6 }));
             pBody.position.y = 1.1; pBody.castShadow = true;
             group.add(pBody);
-
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16),
                 new THREE.MeshStandardMaterial({ color: 0xf0c090, roughness: 0.7 }));
             head.position.y = 2.0; head.castShadow = true;
             group.add(head);
-
             const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
             const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), eyeMat);
             e1.position.set(-0.12, 2.05, 0.3); group.add(e1);
             const e2 = e1.clone(); e2.position.x = 0.12; group.add(e2);
-
             const armMat = new THREE.MeshStandardMaterial({ color: isSelf ? 0x169970 : 0x2a7ad0, roughness: 0.6 });
             const larm = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.8, 4, 8), armMat);
             larm.position.set(-0.65, 1.2, 0); larm.castShadow = true; group.add(larm);
             const rarm = larm.clone(); rarm.position.x = 0.65; group.add(rarm);
-
             const legMat = new THREE.MeshStandardMaterial({ color: 0x1a2540, roughness: 0.7 });
             const lleg = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.7, 4, 8), legMat);
             lleg.position.set(-0.22, 0.45, 0); lleg.castShadow = true; group.add(lleg);
             const rleg = lleg.clone(); rleg.position.x = 0.22; group.add(rleg);
-
             const pgun = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.5),
                 new THREE.MeshStandardMaterial({ color: 0x222831, metalness: 0.6, roughness: 0.5 }));
             pgun.position.set(0.5, 1.2, -0.25); group.add(pgun);
-
             const label = makeLabel(id || "");
             label.position.y = 2.6; group.add(label);
-
             if (isSelf) group.visible = false;
-
-            // 防止因位置更新过快导致的视锥剔除误判
             group.frustumCulled = false;
-
             scene.add(group);
-            return {
-                group, mesh: pBody, label,
-                prevPos: new THREE.Vector3(),
-                targetPos: new THREE.Vector3(),
-                updateTime: performance.now()
-            };
+            return { group, mesh: pBody, label, prevPos: new THREE.Vector3(), targetPos: new THREE.Vector3(), updateTime: performance.now() };
         }
 
         function makeLabel(text) {
@@ -838,15 +702,11 @@ message ProtoCSMap3DNotifyPlayerHurt{
             sp.scale.set(2, 0.5, 1); return sp;
         }
 
-        /* ---------- 子弹 / 特效 ---------- */
         function createBulletMesh() {
             const g = new THREE.SphereGeometry(0.18, 8, 8);
             const m = new THREE.MeshBasicMaterial({ color: 0xffee44, transparent: true });
             const mesh = new THREE.Mesh(g, m);
-            const trail = new THREE.Line(
-                new THREE.BufferGeometry(),
-                new THREE.LineBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.7 })
-            );
+            const trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffaa33, transparent: true, opacity: 0.7 }));
             scene.add(mesh); scene.add(trail);
             return { mesh, trail, points: [] };
         }
@@ -870,14 +730,12 @@ message ProtoCSMap3DNotifyPlayerHurt{
         function createHitEffect(x, y, z) {
             const grp = new THREE.Group();
             for (let i = 0; i < 10; i++) {
-                const p = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6),
-                    new THREE.MeshBasicMaterial({ color: 0xff6633, transparent: true }));
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff6633, transparent: true }));
                 p.position.set(x, y, z);
                 const v = new THREE.Vector3((Math.random() - 0.5), Math.random(), (Math.random() - 0.5)).multiplyScalar(6);
                 p.userData.v = v; grp.add(p);
             }
-            const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.8, 16),
-                new THREE.MeshBasicMaterial({ color: 0xff3333, side: THREE.DoubleSide, transparent: true }));
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.8, 16), new THREE.MeshBasicMaterial({ color: 0xff3333, side: THREE.DoubleSide, transparent: true }));
             ring.position.set(x, y, z); ring.userData.life = 1; grp.add(ring);
             scene.add(grp);
             const start = performance.now();
@@ -911,23 +769,14 @@ message ProtoCSMap3DNotifyPlayerHurt{
             scene.add(sp); dmgNums.push(sp);
         }
 
-        /* ============================================================
-         * 控制：指针锁定 + 视角
-         * ============================================================ */
         let yaw = 0, pitch = 0;
         const EYE_HEIGHT = 2.0;
         const PLAYER_RADIUS = 0.6;
-
         const blocker = document.getElementById("blocker");
-        blocker.addEventListener("click", () => {
-            renderer.domElement.requestPointerLock();
-        });
+        blocker.addEventListener("click", () => { renderer.domElement.requestPointerLock(); });
         document.addEventListener("pointerlockchange", () => {
-            if (document.pointerLockElement === renderer.domElement) {
-                blocker.classList.add("hidden");
-            } else {
-                if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
-            }
+            if (document.pointerLockElement === renderer.domElement) blocker.classList.add("hidden");
+            else if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
         });
         document.addEventListener("mousemove", e => {
             if (document.pointerLockElement !== renderer.domElement) return;
@@ -937,10 +786,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
             pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch));
         });
 
-        /* ============================================================
-         * 移动 + 跳跃（客户端预测）
-         * 地面基准为 GROUND_Y
-         * ============================================================ */
         const localPos = new THREE.Vector3();
         const serverPos = new THREE.Vector3();
         const velY = { v: 0 };
@@ -949,7 +794,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
         const JUMP_SPEED = 10;
         const MOVE_SPEED = 7;
         const INPUT_SEND_SPEED = 2;
-
         const key = {};
         addEventListener("keydown", e => {
             key[e.key.toLowerCase()] = true;
@@ -957,9 +801,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
         });
         addEventListener("keyup", e => key[e.key.toLowerCase()] = false);
 
-        function tryJump() {
-            if (onGround) { velY.v = JUMP_SPEED; onGround = false; }
-        }
+        function tryJump() { if (onGround) { velY.v = JUMP_SPEED; onGround = false; } }
 
         function collide(pos) {
             for (const o of obstacles) {
@@ -988,15 +830,9 @@ message ProtoCSMap3DNotifyPlayerHurt{
             const len = Math.hypot(mx, mz);
             if (len > 0) { mx = mx / len * INPUT_SEND_SPEED; mz = mz / len * INPUT_SEND_SPEED; }
             lastSeq++;
-            sendInner(T_Input, {
-                dirX: Math.round(mx), dirY: Math.round(my), dirZ: Math.round(mz),
-                seq: lastSeq, clientTime: Date.now()
-            }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
+            sendInner(T_Input, { dirX: Math.round(mx), dirY: Math.round(my), dirZ: Math.round(mz), seq: lastSeq, clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
         }, 80);
 
-        /* ============================================================
-         * 射击
-         * ============================================================ */
         let lastShootTime = 0;
         const SHOOT_COOLDOWN = 140;
 
@@ -1005,7 +841,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
             const now = Date.now();
             if (now - lastShootTime < SHOOT_COOLDOWN) return;
             lastShootTime = now;
-
             viewModel.position.z = 0.06;
             flashTime = 0.05;
             flash.material.opacity = 1;
@@ -1046,9 +881,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
             if (document.pointerLockElement === renderer.domElement) shoot();
         });
 
-        /* ============================================================
-         * HUD
-         * ============================================================ */
         function updateHpUI() {
             const pct = Math.max(0, myHp / myMaxHp);
             document.getElementById("hpfill").style.width = (pct * 100) + "%";
@@ -1061,47 +893,22 @@ message ProtoCSMap3DNotifyPlayerHurt{
         }
         updateHpUI();
 
-        /* ============================================================
-         * 实时坐标监控面板
-         * ----------------------------------------------------------
-         * 数据来源：
-         *  - 本机(预测): localPos —— 客户端预测 + 服务器回弹修正后的当前位置
-         *  - 服务器:    serverPos —— 由 PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA 回包写入
-         *  - 其他玩家:   players Map 中每个对象的 targetPos —— 服务器下发的最新坐标
-         *                (渲染层 group.position 会 lerp 逼近该值)
-         * 更新策略：约 10Hz 节流刷新，避免每帧操作 DOM
-         * ============================================================ */
         const cpSelfIdEl = document.getElementById("cpSelfId");
         const cpSelfLocalEl = document.getElementById("cpSelfLocal");
         const cpSelfSvrEl = document.getElementById("cpSelfServer");
         const cpOthersEl = document.getElementById("cpOthers");
 
-        function fmt(v) {
-            // 保留 2 位小数，固定宽度便于对齐
-            const s = v.toFixed(2);
-            return s.padStart(8, " ");
-        }
+        function fmt(v) { return v.toFixed(2).padStart(8, " "); }
 
         let cpAccum = 0;
         function updateCoordPanel(dt) {
             cpAccum += dt;
-            if (cpAccum < 0.1) return; // ~10Hz
+            if (cpAccum < 0.1) return;
             cpAccum = 0;
-
-            // 我的 ID
             cpSelfIdEl.innerHTML = `<span class="lbl">我的ID:　</span> ${selfId ?? "--"}`;
-
-            // 本机预测坐标
-            cpSelfLocalEl.innerHTML =
-                `<span class="lbl">本机(预测):</span> X${fmt(localPos.x)} Y${fmt(localPos.y)} Z${fmt(localPos.z)}`;
-
-            // 服务器权威坐标
-            cpSelfSvrEl.innerHTML =
-                `<span class="lbl">服务器:　</span> X${fmt(serverPos.x)} Y${fmt(serverPos.y)} Z${fmt(serverPos.z)}`;
-
-            // 其他玩家坐标（来自服务器下发的 targetPos）
-            let html = "";
-            let count = 0;
+            cpSelfLocalEl.innerHTML = `<span class="lbl">本机(预测):</span> X${fmt(localPos.x)} Y${fmt(localPos.y)} Z${fmt(localPos.z)}`;
+            cpSelfSvrEl.innerHTML = `<span class="lbl">服务器:　</span> X${fmt(serverPos.x)} Y${fmt(serverPos.y)} Z${fmt(serverPos.z)}`;
+            let html = "", count = 0;
             players.forEach((p, id) => {
                 if (id === selfId) return;
                 count++;
@@ -1111,11 +918,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
             cpOthersEl.innerHTML = count ? html : `<div class="cp-empty">暂无其他玩家</div>`;
         }
 
-        /* ============================================================
-         * 渲染循环
-         * ============================================================ */
         const clock = new THREE.Clock();
-        // 复用临时向量，避免每帧 new 造成 GC 抖动
         const _f = new THREE.Vector3();
         const _r = new THREE.Vector3();
         const _dir = new THREE.Vector3();
@@ -1138,7 +941,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
                 localPos.x = localPos.x + mx + (serverPos.x - localPos.x) * Math.min(1, dt * 8);
                 localPos.z = localPos.z + mz + (serverPos.z - localPos.z) * Math.min(1, dt * 8);
 
-                // 重力 + 落地判定，地面为 GROUND_Y
                 velY.v -= GRAVITY * dt;
                 localPos.y += velY.v * dt;
                 if (localPos.y <= GROUND_Y) {
@@ -1158,24 +960,15 @@ message ProtoCSMap3DNotifyPlayerHurt{
             viewModel.position.z += (0 - viewModel.position.z) * Math.min(1, dt * 12);
             if (flashTime > 0) { flashTime -= dt; if (flashTime <= 0) { flash.material.opacity = 0; } }
 
-            // --- 其他玩家位置插值算法 ---
             players.forEach((p, id) => {
                 if (id === selfId) return;
-
-                // 先用 lerp 前的位置 -> targetPos 计算移动方向（lerp 后方向会退化为残余小向量）
                 _dir.subVectors(p.targetPos, p.group.position);
-
-                // 使用基于帧时间的 lerp，targetPos 已是服务器绝对坐标（含 Y=500000）
                 p.group.position.lerp(p.targetPos, dt * 12);
-
-                // 旋转朝向：根据本帧移动方向
                 if (_dir.lengthSq() > 0.001) {
                     _dir.y = 0;
                     _dir.normalize();
                     const targetRot = Math.atan2(_dir.x, _dir.z);
-                    // 简单的旋转插值
                     let rotDiff = targetRot - p.group.rotation.y;
-                    // 处理 -PI 到 PI 的跳变
                     while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
                     while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
                     p.group.rotation.y += rotDiff * dt * 10;
@@ -1199,9 +992,7 @@ message ProtoCSMap3DNotifyPlayerHurt{
                 if (s.userData.life <= 0) { scene.remove(s); dmgNums.splice(i, 1); }
             }
 
-            // 刷新坐标监控面板（内部节流 ~10Hz）
             updateCoordPanel(dt);
-
             renderer.render(scene, camera);
         }
         animate();
@@ -1213,7 +1004,6 @@ message ProtoCSMap3DNotifyPlayerHurt{
         });
 
         log("✓ AVANT FPS 已初始化 (地面 Y=" + GROUND_Y + ")");
-        log("操作: 连接 → 登录 → 进入3D地图 → 点击画面");
     </script>
 </body>
 

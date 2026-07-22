@@ -57,7 +57,7 @@ function PlayerCmptMap3D:EnterNewMap(mapId)
         return ProtoLua_ProtoErrCode.ERR_TARGET_MAP_NOT_FOUND;
     end
 
-    if map:PlayerJoinMap(self:GetPlayer():GetPlayerID(), self:GetPlayer():GetUserId()) ~= true then
+    if map:PlayerJoinMap(self:GetPlayer():GetUserId()) ~= true then
         return ProtoLua_ProtoErrCode.ERR_UNKNOW;
     end
 
