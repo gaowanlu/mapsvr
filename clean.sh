@@ -1,4 +1,5 @@
-#!/bin/bash
+# 1. 获取操作系统类型
+OS_NAME=$(uname -s)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 echo "Working directory: $SCRIPT_DIR"
