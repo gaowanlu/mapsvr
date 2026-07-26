@@ -9,12 +9,13 @@ MapSvr = MapSvr or {
 
 require("ProtoLuaImport");
 local Log = require("Log");
+local TimeMgr = require("TimeMgrLogic")
+local CoroutineMgr = require("CoroutineMgrLogic")
 local MsgHandler = require("MsgHandlerLogic")
 local PlayerMgr = require("PlayerMgrLogic")
 local MapMgr = require("MapMgrLogic")
 local FSRoomMgr = require("FSRoomMgrLogic")
 local Map3DMgr = require("Map3DMgrLogic")
-local TimeMgr = require("TimeMgrLogic")
 local AlgorithmRandom = require("AlgorithmRandomLogic")
 
 --- 线程被启动时只调用一次
@@ -36,6 +37,7 @@ end
 --- 线程Tick频率以配置文件变量epoll_wait_time控制
 ---@return nil
 function MapSvr.OnTick()
+    CoroutineMgr.OnTick()
     PlayerMgr.OnTick()
     MapMgr.OnTick()
     FSRoomMgr.OnTick()
@@ -94,6 +96,7 @@ function MapSvr.OnReload()
     table.insert(reloadList, "MsgHandlerLogic")
     table.insert(reloadList, "ConfigTableMgrLogic")
     table.insert(reloadList, "TimeMgrLogic")
+    table.insert(reloadList, "CoroutineMgrLogic")
     table.insert(reloadList, "Map3DLogic")
     table.insert(reloadList, "Map3DMgrLogic")
 
