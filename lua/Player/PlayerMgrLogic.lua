@@ -1,12 +1,12 @@
----@class PlayerMgr:PlayerMgrType
-local PlayerMgr = require("PlayerMgrData");
+---@class PlayerMgr: PlayerMgrType
+local PlayerMgr = require("PlayerMgrData")
 local Player = require("PlayerLogic")
 local Log = require("Log")
 
 PlayerMgr["players"] = PlayerMgr["players"] or {}
----@type table<string,string>
+---@type table<string, string>
 PlayerMgr["userIdToPlayerId"] = PlayerMgr["userIdToPlayerId"] or {}
----@type table<string,string>
+---@type table<string, string>
 PlayerMgr["playerIdToUserId"] = PlayerMgr["playerIdToUserId"] or {}
 PlayerMgr["playerIdOnlineList"] = PlayerMgr["playerIdOnlineList"] or {}
 
@@ -37,7 +37,7 @@ end
 ---@param playerId string
 ---@return boolean
 function PlayerMgr.IsPlayerIdOnline(playerId)
-    return PlayerMgr.playerIdOnlineList[playerId] ~= nil;
+    return PlayerMgr.playerIdOnlineList[playerId] ~= nil
 end
 
 ---@param playerId string
@@ -58,23 +58,23 @@ function PlayerMgr.RemovePlayerByPlayerId(playerId)
     -- Log:Error("RemovePlayerByPlayerId from PlayerMgr playerId %s userId %s", playerId, userId or "nil");
 end
 
----@param userId string
+---@param userId   string
 ---@param playerId string
 function PlayerMgr.BindUserIdAndPlayerId(userId, playerId)
     if nil == PlayerMgr.GetPlayerByPlayerId(playerId) then
-        Log:Error("BindUserIdAndPlayerId failed, playerId %s not exists", playerId);
+        Log:Error("BindUserIdAndPlayerId failed, playerId %s not exists", playerId)
         return
     end
 
     if nil ~= PlayerMgr.GetPlayerByUserId(userId) then
-        Log:Error("BindUserIdAndPlayerId failed, userId %s exists", userId);
+        Log:Error("BindUserIdAndPlayerId failed, userId %s exists", userId)
         return
     end
 
     PlayerMgr.userIdToPlayerId[userId] = playerId
     PlayerMgr.playerIdToUserId[playerId] = userId
 
-    Log:Error("BindUserIdAndPlayerId success, userId %s playerId %s", userId, playerId);
+    Log:Error("BindUserIdAndPlayerId success, userId %s playerId %s", userId, playerId)
 end
 
 ---@param userId string
@@ -90,7 +90,7 @@ function PlayerMgr.OnTick()
     -- Log:Error("OnTickAll Player")
     for _, playerItem in pairs(PlayerMgr.players) do
         ---@type Player
-        local player = playerItem;
+        local player = playerItem
         player:OnTick()
     end
 end
@@ -98,19 +98,18 @@ end
 function PlayerMgr.OnStop()
     Log:Error("PlayerMgr OnStop")
     for playerId, player in pairs(PlayerMgr.players) do
-        PlayerMgr.RemovePlayerByPlayerId(playerId);
+        PlayerMgr.RemovePlayerByPlayerId(playerId)
     end
 end
 
 function PlayerMgr.OnSafeStop()
-    Log:Error("PlayerMgr.OnSafeStop()");
-
+    Log:Error("PlayerMgr.OnSafeStop()")
 
     for playerId, playerItem in pairs(PlayerMgr.players) do
         ---@type Player
-        local player = playerItem;
+        local player = playerItem
 
-        player:OnSafeStop();
+        player:OnSafeStop()
     end
 end
 

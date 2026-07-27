@@ -195,4 +195,3 @@ To maintain a clean and readable history, please follow this commit message form
 * `feat: implement player inventory system`
 * `fix: resolve memory leak in FSRoom logic`
 * `update: upgrade avant to latest commit`
-```

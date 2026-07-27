@@ -1,2 +1,2 @@
 ---@class MapMgrType
----@field maps table<integer,Map>
+---@field maps table<integer, Map>

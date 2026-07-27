@@ -1,9 +1,9 @@
----@class PlayerCmptFSRoomType:PlayerCmptBase
+---@class PlayerCmptFSRoomType: PlayerCmptBase
 ---@field nowRoomId integer
 
 local PlayerCmptBase = require("PlayerCmptBaseLogic")
 
----@class PlayerCmptFSRoom:PlayerCmptFSRoomType
+---@class PlayerCmptFSRoom: PlayerCmptFSRoomType
 local PlayerCmptFSRoom = require("PlayerCmptFSRoomData")
 
 local Log = require("Log")
@@ -30,4 +30,4 @@ end
 function PlayerCmptFSRoom:OnLogout()
 end
 
-return PlayerCmptFSRoom;
+return PlayerCmptFSRoom

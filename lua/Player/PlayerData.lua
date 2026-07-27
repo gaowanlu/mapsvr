@@ -2,4 +2,4 @@
 Player = Player or {}
 Player.__index = Player
 
-return Player;
+return Player

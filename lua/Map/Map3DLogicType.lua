@@ -9,46 +9,46 @@
 ---@field z number
 
 ---@class Map3DDbDataType
----@field id integer 地图ID
----@field TICK_RATE integer 帧率
----@field DT_MS integer 每帧时间间隔 毫秒
----@field lastTickTimeMS integer 执行上一次tick的毫秒时间戳
----@field durationAccumulator number 帧时常累计时间毫秒
----@field size Vec3i 地图大小
+---@field id                  integer 地图ID
+---@field TICK_RATE           integer 帧率
+---@field DT_MS               integer 每帧时间间隔 毫秒
+---@field lastTickTimeMS      integer 执行上一次tick的毫秒时间戳
+---@field durationAccumulator number  帧时常累计时间毫秒
+---@field size                Vec3i   地图大小
 
 ---@class Map3DPlayerType
----@field userId string 用户ID
----@field pos Vec3f 位置坐标
----@field prevPos Vec3f 上一帧位置坐标
----@field groundY number
----@field v Vec3f 速度
----@field gravity integer 重力
----@field weight integer 重量
----@field lastSeq integer 最后收到并应用的客户端输入seq
----@field lastClientTime string 客户端发送该seq时的客户端时间(ms)
----@field dir Vec3f 方向
----@field speedRatio number 速度放大比例
----@field maxSpeed number 目标最大速度 px/ms
----@field accel number 加速度 px/ms^2
----@field friction number 每帧速度衰减系数
----@field bodyRadius number 角色碰撞半径
----@field map3DOctree Map3DOctree|nil 所在地图八叉树节点
+---@field userId         string            用户ID
+---@field pos            Vec3f             位置坐标
+---@field prevPos        Vec3f             上一帧位置坐标
+---@field groundY        number
+---@field v              Vec3f             速度
+---@field gravity        integer           重力
+---@field weight         integer           重量
+---@field lastSeq        integer           最后收到并应用的客户端输入seq
+---@field lastClientTime string            客户端发送该seq时的客户端时间(ms)
+---@field dir            Vec3f             方向
+---@field speedRatio     number            速度放大比例
+---@field maxSpeed       number            目标最大速度 px/ms
+---@field accel          number            加速度 px/ms^2
+---@field friction       number            每帧速度衰减系数
+---@field bodyRadius     number            角色碰撞半径
+---@field map3DOctree    Map3DOctree | nil 所在地图八叉树节点
 
 ---@class Map3DBulletType
----@field bulletId string
----@field shooterId string
----@field pos Vec3f
----@field prevPos Vec3f
----@field dir Vec3f
----@field lifeTime integer
----@field spawnTime integer
----@field speedRatio integer
----@field isExpired boolean
+---@field bulletId        string
+---@field shooterId       string
+---@field pos             Vec3f
+---@field prevPos         Vec3f
+---@field dir             Vec3f
+---@field lifeTime        integer
+---@field spawnTime       integer
+---@field speedRatio      integer
+---@field isExpired       boolean
 ---@field collisionRadius number
 
 ---@class Map3DType
----@field MapDbData Map3DDbDataType
----@field players table<string,Map3DPlayerType> userId到玩家对象的映射
----@field map3DOctree Map3DOctree 八叉树
----@field bullets table<string,Map3DBulletType>
----@field nextBulletIdSeq integer 下一发子弹IDSeq
+---@field MapDbData       Map3DDbDataType
+---@field players         table<string, Map3DPlayerType> userId到玩家对象的映射
+---@field map3DOctree     Map3DOctree                    八叉树
+---@field bullets         table<string, Map3DBulletType>
+---@field nextBulletIdSeq integer                        下一发子弹IDSeq

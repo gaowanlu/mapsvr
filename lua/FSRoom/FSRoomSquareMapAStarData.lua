@@ -1,3 +1,3 @@
-FSRoomSquareMapAStar = FSRoomSquareMapAStar or {};
-FSRoomSquareMapAStar.__index = FSRoomSquareMapAStar;
-return FSRoomSquareMapAStar;
+FSRoomSquareMapAStar = FSRoomSquareMapAStar or {}
+FSRoomSquareMapAStar.__index = FSRoomSquareMapAStar
+return FSRoomSquareMapAStar

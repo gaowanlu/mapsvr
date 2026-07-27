@@ -1,27 +1,27 @@
 ---@class FSRoomMgr
----@field rooms table<integer,FSRoom>
+---@field rooms           table<integer, FSRoom>
 ---@field lastCleanupTime number
-local FSRoomMgr = require("FSRoomMgrData");
+local FSRoomMgr = require("FSRoomMgrData")
 
-local FSRoom = require("FSRoomLogic");
-local Log = require("Log");
+local FSRoom = require("FSRoomLogic")
+local Log = require("Log")
 local TimeMgr = require("TimeMgrLogic")
 
-FSRoomMgr.rooms = FSRoomMgr.rooms or {};
-FSRoomMgr.lastCleanupTime = FSRoomMgr.lastCleanupTime or 0;
+FSRoomMgr.rooms = FSRoomMgr.rooms or {}
+FSRoomMgr.lastCleanupTime = FSRoomMgr.lastCleanupTime or 0
 
 ---@param roomId integer 房间号
----@return FSRoom|nil 房间
+---@return FSRoom | nil 房间
 function FSRoomMgr.CreateRoom(roomId)
     if FSRoomMgr.rooms[roomId] ~= nil then
         Log:Error("Already exists Room roomId %d", roomId)
         return nil
     end
 
-    Log:Error("Create new FSRoom roomId[%d]", roomId);
-    local newRoom = FSRoom.new(roomId, 2);
-    FSRoomMgr.rooms[roomId] = newRoom;
-    return newRoom;
+    Log:Error("Create new FSRoom roomId[%d]", roomId)
+    local newRoom = FSRoom.new(roomId, 2)
+    FSRoomMgr.rooms[roomId] = newRoom
+    return newRoom
 end
 
 ---@param roomId integer 房间号
@@ -33,93 +33,93 @@ end
 ---@param roomId integer 房间号
 ---@return boolean 删除是否成功
 function FSRoomMgr.DeleteRoom(roomId)
-    ---@type FSRoom|nil
-    local room = FSRoomMgr.rooms[roomId];
+    ---@type FSRoom | nil
+    local room = FSRoomMgr.rooms[roomId]
 
     if room ~= nil then
-        room:DeleteBefore();
+        room:DeleteBefore()
         FSRoomMgr.rooms[roomId] = nil
         Log:Error("RemoveRoom from FSRoomMgr roomId %d", roomId)
-        return true;
+        return true
     end
-    return false;
+    return false
 end
 
 function FSRoomMgr.OnTick()
-    local currTimeS = TimeMgr.GetS();
+    local currTimeS = TimeMgr.GetS()
 
     for roomId, roomItem in pairs(FSRoomMgr.rooms) do
         ---@type FSRoom
-        local roomObj = roomItem;
+        local roomObj = roomItem
 
-        roomObj:OnTick();
+        roomObj:OnTick()
     end
 
     if currTimeS - FSRoomMgr.lastCleanupTime > 20 then
-        FSRoomMgr.lastCleanupTime = currTimeS;
-        FSRoomMgr.CleanupFinishedRooms(currTimeS);
+        FSRoomMgr.lastCleanupTime = currTimeS
+        FSRoomMgr.CleanupFinishedRooms(currTimeS)
     end
 end
 
 function FSRoomMgr.OnStop()
-    Log:Error("FSRoomMgr OnStop");
+    Log:Error("FSRoomMgr OnStop")
     for roomId, roomObj in pairs(FSRoomMgr.rooms) do
-        FSRoomMgr.DeleteRoom(roomId);
+        FSRoomMgr.DeleteRoom(roomId)
     end
 end
 
 function FSRoomMgr.OnSafeStop()
-    Log:Error("FSRoomMgr.OnSafeStop()");
+    Log:Error("FSRoomMgr.OnSafeStop()")
 end
 
 function FSRoomMgr.OnReload()
-    local ConfigTableMgr = require("ConfigTableMgrLogic");
-    local roomCount = ConfigTableMgr.FSRoomConfig:GetRoomIdCount();
+    local ConfigTableMgr = require("ConfigTableMgrLogic")
+    local roomCount = ConfigTableMgr.FSRoomConfig:GetRoomIdCount()
 
     for i = 1, roomCount, 1 do
-        local roomId = ConfigTableMgr.FSRoomConfig:GetRoomIdAt(i);
+        local roomId = ConfigTableMgr.FSRoomConfig:GetRoomIdAt(i)
 
         -- 初始化一个帧同步房间
-        FSRoomMgr.CreateRoom(roomId);
+        FSRoomMgr.CreateRoom(roomId)
     end
 end
 
 --- 找一个状态为WAITING人数还没满的房间
----@return FSRoom|nil
+---@return FSRoom | nil
 function FSRoomMgr.FindAvailableRoom()
     for _, room in pairs(FSRoomMgr.rooms) do
         if room.state == FSRoom.STATE_WAITING and room:GetRoomPlayersCnt() < room.maxPlayers then
-            return room;
+            return room
         end
     end
-    return nil;
+    return nil
 end
 
 --- 释放该释放的Room
 ---@param currTimeS number
 function FSRoomMgr.CleanupFinishedRooms(currTimeS)
-    local toDelete = {};
+    local toDelete = {}
     for roomId, room in pairs(FSRoomMgr.rooms) do
         repeat
             if room.state ~= FSRoom.STATE_FINISHED then
-                break;
+                break
             end
 
             if room:GetRoomPlayersCnt() ~= 0 then
-                break;
+                break
             end
 
             if currTimeS - room.lastUpdateStateTime <= 3 * 60 then
-                break;
+                break
             end
 
-            table.insert(toDelete, roomId);
-        until true;
+            table.insert(toDelete, roomId)
+        until true
     end
 
     for _, roomId in ipairs(toDelete) do
-        FSRoomMgr.DeleteRoom(roomId);
+        FSRoomMgr.DeleteRoom(roomId)
     end
 end
 
-return FSRoomMgr;
+return FSRoomMgr

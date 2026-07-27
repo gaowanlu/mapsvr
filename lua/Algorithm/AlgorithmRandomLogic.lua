@@ -5,7 +5,7 @@ AlgorithmRandom = AlgorithmRandom or {}
 ---@param n integer
 ---@return integer
 function AlgorithmRandom.Random(m, n)
-    return math.random(m, n);
+    return math.random(m, n)
 end
 
 --- 判断命中的函数
@@ -13,13 +13,13 @@ end
 ---@return boolean 是否命中
 function AlgorithmRandom.HitProbability(prob)
     local rand = math.random() -- 生成一个 0 到 1 之间的随机数
-    return rand <= prob        -- 如果随机数小于等于指定概率，则命中
+    return rand <= prob -- 如果随机数小于等于指定概率，则命中
 end
 
 --- 不放回抽取多次
----@param weights table<integer,number>
+---@param weights  table<integer, number>
 ---@param numDraws number
----@return table<integer,number>
+---@return table<integer, number>
 function AlgorithmRandom.WeightedDraw(weights, numDraws)
     ---@type number
     local totalWeight = 0
@@ -45,7 +45,7 @@ function AlgorithmRandom.WeightedDraw(weights, numDraws)
         local rand = math.random() * totalWeight
         ---@type number
         local currentWeight = 0
-        ---@type integer|nil
+        ---@type integer | nil
         local selectedIndex = nil
 
         -- 按照剩余权重抽取
@@ -70,22 +70,17 @@ function AlgorithmRandom.WeightedDraw(weights, numDraws)
 end
 
 ---@class AlgorithmRandomWeightedDrawSingleScene
----@field totalWeight number
----@field remainingWeights table<integer,number>
----@field remainingIndices table<integer,number>
----@field selectedIndex number
+---@field totalWeight      number
+---@field remainingWeights table<integer, number>
+---@field remainingIndices table<integer, number>
+---@field selectedIndex    number
 
 --- 创建新的抽奖场景
----@param weights table<integer,number> 权重列表
+---@param weights table<integer, number> 权重列表
 ---@return AlgorithmRandomWeightedDrawSingleScene scene 初始化的场景数据
 function AlgorithmRandom.CreateDrawScene(weights)
     ---@type AlgorithmRandomWeightedDrawSingleScene
-    local scene = {
-        totalWeight = 0,
-        remainingWeights = {},
-        remainingIndices = {},
-        selectedIndex = 0
-    };
+    local scene = { totalWeight = 0, remainingWeights = {}, remainingIndices = {}, selectedIndex = 0 }
 
     for i, weight in ipairs(weights) do
         scene.totalWeight = scene.totalWeight + weight
@@ -97,9 +92,9 @@ function AlgorithmRandom.CreateDrawScene(weights)
 end
 
 --- 抽取一个并保存抽奖场景（可放回版本）
----@param weights table<integer,number> 权重列表
----@param scene AlgorithmRandomWeightedDrawSingleScene 场景数据，包含剩余的权重和索引
----@return number selectedIndex 被抽中的索引
+---@param weights table<integer, number>                 权重列表
+---@param scene   AlgorithmRandomWeightedDrawSingleScene 场景数据，包含剩余的权重和索引
+---@return number selectedIndex                                被抽中的索引
 ---@return AlgorithmRandomWeightedDrawSingleScene updatedScene 更新后的场景数据
 function AlgorithmRandom.WeightedDrawSingle(weights, scene)
     -- 如果场景中没有剩余的权重和索引（即第一次抽取），初始化它们
@@ -131,7 +126,7 @@ function AlgorithmRandom.WeightedDrawSingle(weights, scene)
     local rand = math.random() * totalWeight
     ---@type number
     local currentWeight = 0
-    ---@type integer|nil
+    ---@type integer | nil
     local selectedIndex = nil
 
     for i, weight in ipairs(remainingWeights) do
@@ -154,7 +149,7 @@ end
 
 --- 抽取一个并保存抽奖场景（不放回版本）
 ---@param scene AlgorithmRandomWeightedDrawSingleScene 场景数据，包含剩余的权重和索引
----@return number selectedIndex 被抽中的索引，如果没有剩余元素则返回0
+---@return number selectedIndex                                被抽中的索引，如果没有剩余元素则返回0
 ---@return AlgorithmRandomWeightedDrawSingleScene updatedScene 更新后的场景数据
 function AlgorithmRandom.WeightedDrawSingleNoRepeat(scene)
     local remainingWeights = scene.remainingWeights
@@ -181,7 +176,7 @@ function AlgorithmRandom.WeightedDrawSingleNoRepeat(scene)
     local rand = math.random() * totalWeight
     ---@type number
     local currentWeight = 0
-    ---@type integer|nil
+    ---@type integer | nil
     local selectedIndex = nil
 
     for i, weight in ipairs(remainingWeights) do
@@ -207,11 +202,11 @@ end
 
 ---@param seed integer
 function AlgorithmRandom.RandomSeed(seed)
-    math.randomseed(seed);
+    math.randomseed(seed)
 end
 
 -- 直接运行时的测试代码
-if not ... then                           -- 如果是直接运行而非被 require
+if not ... then -- 如果是直接运行而非被 require
     AlgorithmRandom.RandomSeed(os.time()) -- 设置种子
 
     -- 测试命中概率
@@ -271,4 +266,4 @@ if not ... then                           -- 如果是直接运行而非被 requ
 end
 
 -- 返回模块
-return AlgorithmRandom;
+return AlgorithmRandom

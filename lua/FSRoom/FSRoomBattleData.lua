@@ -1,3 +1,3 @@
-FSRoomBattleData = FSRoomBattleData or {};
-FSRoomBattleData.__index = FSRoomBattleData;
-return FSRoomBattleData;
+FSRoomBattleData = FSRoomBattleData or {}
+FSRoomBattleData.__index = FSRoomBattleData
+return FSRoomBattleData

@@ -1,5 +1,5 @@
 ---@class PlayerMgrType
----@field players table<string,Player>
----@field userIdToPlayerId table<number,string>
----@field playerIdToUserId table<string,number>
----@field playerIdOnlineList table<string,number>
+---@field players            table<string, Player>
+---@field userIdToPlayerId   table<number, string>
+---@field playerIdToUserId   table<string, number>
+---@field playerIdOnlineList table<string, number>

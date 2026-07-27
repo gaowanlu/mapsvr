@@ -1,38 +1,38 @@
 ---@class MapPlayerType 地图内的玩家
----@field playerId string 连接sessionID
----@field userId string 用户ID
----@field x number 当前所在像素坐标x 左上角为原点 向右为x正轴向下为y正轴
----@field y number 当前所在像素坐标y 左上角为原点 向右为x正轴向下为y正轴
----@field vX number x轴速度
----@field vY number y轴速度
----@field dirX number 客户端输入方向x 归一化后的
----@field dirY number 客户端输入方向y 归一化后的
----@field maxSpeed number 目标最大速度 px/ms
----@field speedRatio number 速度放大比例
----@field accel number 加速度 px/ms^2
----@field bodyRadius number 角色碰撞半径
----@field bodyMass number 质量
----@field friction number 每帧速度衰减系数
----@field bounce number 角色撞到障碍物时的反弹系数
----@field lastSeq number 最后收到并应用的客户端输入seq
----@field lastClientTime string 客户端发送该seq时的客户端时间(ms)
----@field mapQuadTree MapQuadTreeType|nil 所在地图四叉树节点
+---@field playerId       string                连接sessionID
+---@field userId         string                用户ID
+---@field x              number                当前所在像素坐标x 左上角为原点 向右为x正轴向下为y正轴
+---@field y              number                当前所在像素坐标y 左上角为原点 向右为x正轴向下为y正轴
+---@field vX             number                x轴速度
+---@field vY             number                y轴速度
+---@field dirX           number                客户端输入方向x 归一化后的
+---@field dirY           number                客户端输入方向y 归一化后的
+---@field maxSpeed       number                目标最大速度 px/ms
+---@field speedRatio     number                速度放大比例
+---@field accel          number                加速度 px/ms^2
+---@field bodyRadius     number                角色碰撞半径
+---@field bodyMass       number                质量
+---@field friction       number                每帧速度衰减系数
+---@field bounce         number                角色撞到障碍物时的反弹系数
+---@field lastSeq        number                最后收到并应用的客户端输入seq
+---@field lastClientTime string                客户端发送该seq时的客户端时间(ms)
+---@field mapQuadTree    MapQuadTreeType | nil 所在地图四叉树节点
 
 ---@class TileMapType
----@field tileSize integer 瓦片像素大小
----@field width integer 地图内宽有多少个瓦片
----@field height integer 地图内高有多少个瓦片
----@field data table<integer,integer> 瓦片像素数据
+---@field tileSize integer                 瓦片像素大小
+---@field width    integer                 地图内宽有多少个瓦片
+---@field height   integer                 地图内高有多少个瓦片
+---@field data     table<integer, integer> 瓦片像素数据
 
 ---@class MapDbDataType
----@field id integer 地图ID
----@field TICK_RATE integer 帧率
----@field DT_MS integer 每帧时间间隔 毫秒
----@field lastTickTimeMS integer 执行上一次tick的毫秒时间戳
----@field durationAccumulator number 帧时常累计时间毫秒
+---@field id                  integer 地图ID
+---@field TICK_RATE           integer 帧率
+---@field DT_MS               integer 每帧时间间隔 毫秒
+---@field lastTickTimeMS      integer 执行上一次tick的毫秒时间戳
+---@field durationAccumulator number  帧时常累计时间毫秒
 
 ---@class MapType
----@field players table<string, MapPlayerType> 地图内的所有玩家
----@field tileMap TileMapType
----@field MapDbData MapDbDataType
----@field mapQuadTree MapQuadTreeType 四叉树
+---@field players     table<string, MapPlayerType> 地图内的所有玩家
+---@field tileMap     TileMapType
+---@field MapDbData   MapDbDataType
+---@field mapQuadTree MapQuadTreeType              四叉树

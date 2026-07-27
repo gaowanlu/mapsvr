@@ -1,9 +1,9 @@
-AlgorithmCollisionLogic = AlgorithmCollisionLogic or {};
+AlgorithmCollisionLogic = AlgorithmCollisionLogic or {}
 
 ---@class AlgorithmCollisionBox
----@field x number 左上角x坐标
----@field y number 左上角y坐标
----@field width number 矩形宽度 x方向
+---@field x      number 左上角x坐标
+---@field y      number 左上角y坐标
+---@field width  number 矩形宽度 x方向
 ---@field height number 矩形高度 y方向
 
 --- 2D AABB 碰撞检测
@@ -11,17 +11,13 @@ AlgorithmCollisionLogic = AlgorithmCollisionLogic or {};
 ---@param box2 AlgorithmCollisionBox
 ---@return boolean
 function AlgorithmCollisionLogic.AABBCollision2D(box1, box2)
-    return not (
-        box1.x + box1.width < box2.x or
-        box1.x > box2.x + box2.width or
-        box1.y + box1.height < box2.y or
-        box1.y > box2.y + box2.height
-    );
+    return not (box1.x + box1.width < box2.x or box1.x > box2.x + box2.width
+        or box1.y + box1.height < box2.y or box1.y > box2.y + box2.height)
 end
 
 ---@class AlgorithmCollisionCircle
----@field x number
----@field y number
+---@field x      number
+---@field y      number
 ---@field radius number
 
 --- 2D圆形碰撞检测
@@ -29,24 +25,24 @@ end
 ---@param circle2 AlgorithmCollisionCircle
 ---@return boolean
 function AlgorithmCollisionLogic.CircleCollision2D(circle1, circle2)
-    local dx = circle1.x - circle2.x;
-    local dy = circle1.y - circle2.y;
-    local distance = math.sqrt(dx * dx + dy * dy);
-    return distance < (circle1.radius + circle2.radius);
+    local dx = circle1.x - circle2.x
+    local dy = circle1.y - circle2.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    return distance < (circle1.radius + circle2.radius)
 end
 
 --- 2D点在矩形内检测点是否在矩形内部
----@param x number
----@param y number
+---@param x   number
+---@param y   number
 ---@param box AlgorithmCollisionBox
 ---@return boolean
 function AlgorithmCollisionLogic.PointInAABB2D(x, y, box)
-    return x >= box.x and x <= box.x + box.width and y >= box.y and y <= box.y + box.height;
+    return x >= box.x and x <= box.x + box.width and y >= box.y and y <= box.y + box.height
 end
 
 --- 2D原与矩形的碰撞检测
 ---@param circle AlgorithmCollisionCircle
----@param box AlgorithmCollisionBox
+---@param box    AlgorithmCollisionBox
 ---@return boolean
 function AlgorithmCollisionLogic.CircleRectangleCollision2D(circle, box)
     -- 计算矩形边界范围内，距离圆心最近的点
@@ -69,8 +65,8 @@ function AlgorithmCollisionLogic.CircleRectangleCollision2D(circle, box)
 end
 
 --- 判断点是否在圆形内
----@param px number
----@param py number
+---@param px     number
+---@param py     number
 ---@param circle AlgorithmCollisionCircle
 function AlgorithmCollisionLogic.PointInCircle2D(px, py, circle)
     local dx = px - circle.x
@@ -131,8 +127,8 @@ if not ... then -- 如果是直接运行而非被 require
     ---@diagnostic disable-next-line: unnecessary-if
     if true then
         -- 测试点是否在圆形内部
-        local point = { x = 3, y = 4 }                                                            -- 点的坐标
-        local circle = { x = 0, y = 0, radius = 5 }                                               -- 圆心坐标和半径
+        local point = { x = 3, y = 4 }              -- 点的坐标
+        local circle = { x = 0, y = 0, radius = 5 } -- 圆心坐标和半径
         print("expect true->", AlgorithmCollisionLogic.PointInCircle2D(point.x, point.y, circle)) -- 输出 true
 
         -- 测试点不在圆形内部
@@ -165,4 +161,4 @@ if not ... then -- 如果是直接运行而非被 require
     end
 end
 
-return AlgorithmCollisionLogic;
+return AlgorithmCollisionLogic

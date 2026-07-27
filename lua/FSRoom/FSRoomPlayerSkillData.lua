@@ -1,3 +1,3 @@
-FSRoomPlayerSkill = FSRoomPlayerSkill or {};
-FSRoomPlayerSkill.__index = FSRoomPlayerSkill;
-return FSRoomPlayerSkill;
+FSRoomPlayerSkill = FSRoomPlayerSkill or {}
+FSRoomPlayerSkill.__index = FSRoomPlayerSkill
+return FSRoomPlayerSkill

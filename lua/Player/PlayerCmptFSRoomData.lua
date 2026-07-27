@@ -7,4 +7,4 @@ setmetatable(PlayerCmptFSRoom, {
 
 PlayerCmptFSRoom.__index = PlayerCmptFSRoom
 
-return PlayerCmptFSRoom;
+return PlayerCmptFSRoom

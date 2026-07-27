@@ -1,9 +1,9 @@
 local PlayerCmptBase = require("PlayerCmptBaseLogic")
 local Log = require("Log")
 
----@class PlayerCmptInfoType:PlayerCmptBase
+---@class PlayerCmptInfoType: PlayerCmptBase
 
----@class PlayerCmptInfo:PlayerCmptInfoType
+---@class PlayerCmptInfo: PlayerCmptInfoType
 local PlayerCmptInfo = require("PlayerCmptInfoData")
 
 ---@param owner Player
@@ -16,8 +16,8 @@ end
 
 ---@return ProtoLua_DbPlayerBaseInfo
 function PlayerCmptInfo:GetDbBaseInfoData()
-    local dbUserRecord = self.owner:GetDbUserRecord();
-    return dbUserRecord.base_info;
+    local dbUserRecord = self.owner:GetDbUserRecord()
+    return dbUserRecord.base_info
 end
 
 ---@param lv integer

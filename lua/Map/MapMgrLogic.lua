@@ -1,7 +1,7 @@
----@class MapMgr:MapMgrType
-local MapMgr = require("MapMgrData");
-local Map = require("MapLogic");
-local Log = require("Log");
+---@class MapMgr: MapMgrType
+local MapMgr = require("MapMgrData")
+local Map = require("MapLogic")
+local Log = require("Log")
 
 -- 热重载lua会被重新执行
 MapMgr.maps = MapMgr.maps or {}
@@ -36,32 +36,32 @@ end
 function MapMgr.OnTick()
     for mapId, mapItem in pairs(MapMgr.maps) do
         ---@type Map
-        local mapObj = mapItem;
+        local mapObj = mapItem
 
-        mapObj:OnTick();
+        mapObj:OnTick()
     end
 end
 
 function MapMgr.OnStop()
-    Log:Error("MapMgr OnStop");
+    Log:Error("MapMgr OnStop")
     for mapId, mapObj in pairs(MapMgr.maps) do
-        MapMgr.RemoveMap(mapId);
+        MapMgr.RemoveMap(mapId)
     end
 end
 
 function MapMgr.OnSafeStop()
-    Log:Error("MapMgr.OnSafeStop()");
+    Log:Error("MapMgr.OnSafeStop()")
 end
 
 function MapMgr.OnReload()
-    local ConfigTableMgr = require("ConfigTableMgrLogic");
-    local mapCount = ConfigTableMgr.Map2DConfig:GetMapIdCount();
+    local ConfigTableMgr = require("ConfigTableMgrLogic")
+    local mapCount = ConfigTableMgr.Map2DConfig:GetMapIdCount()
 
     for i = 1, mapCount, 1 do
-        local mapId = ConfigTableMgr.Map2DConfig:GetMapIdAt(i);
+        local mapId = ConfigTableMgr.Map2DConfig:GetMapIdAt(i)
         -- 初始化一张地图
         MapMgr.CreateMap(mapId)
     end
 end
 
-return MapMgr;
+return MapMgr

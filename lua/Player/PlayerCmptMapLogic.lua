@@ -1,9 +1,9 @@
----@class PlayerCmptMapType:PlayerCmptBase
+---@class PlayerCmptMapType: PlayerCmptBase
 ---@field nowMapId integer
 
 local PlayerCmptBase = require("PlayerCmptBaseLogic")
 
----@class PlayerCmptMap:PlayerCmptMapType
+---@class PlayerCmptMap: PlayerCmptMapType
 local PlayerCmptMap = require("PlayerCmptMapData")
 
 local Log = require("Log")
@@ -27,7 +27,7 @@ function PlayerCmptMap:OnTick()
 end
 
 function PlayerCmptMap:OnLogin()
-    self:LeaveCurrMap();
+    self:LeaveCurrMap()
 end
 
 function PlayerCmptMap:OnLogout()
@@ -36,12 +36,12 @@ end
 
 ---@return boolean
 function PlayerCmptMap:HasInMap()
-    return self.nowMapId > 0;
+    return self.nowMapId > 0
 end
 
 function PlayerCmptMap:LeaveCurrMap()
     if self:HasInMap() then
-        local map = MapMgr.GetMap(self.nowMapId);
+        local map = MapMgr.GetMap(self.nowMapId)
         if map == nil then
             return
         end
@@ -54,18 +54,18 @@ end
 ---@param mapId integer
 ---@return integer
 function PlayerCmptMap:EnterNewMap(mapId)
-    local map = MapMgr.GetMap(mapId);
+    local map = MapMgr.GetMap(mapId)
     if map == nil then
-        return ProtoLua_ProtoErrCode.ERR_TARGET_MAP_NOT_FOUND;
+        return ProtoLua_ProtoErrCode.ERR_TARGET_MAP_NOT_FOUND
     end
     if map:PlayerJoinMap(self:GetPlayer():GetPlayerID(), self:GetPlayer():GetUserId()) ~= true then
-        return ProtoLua_ProtoErrCode.ERR_UNKNOW;
+        return ProtoLua_ProtoErrCode.ERR_UNKNOW
     end
 
-    local mapPlayer = map:GetMapPlayerByUserId(self:GetPlayer():GetUserId());
+    local mapPlayer = map:GetMapPlayerByUserId(self:GetPlayer():GetUserId())
     if mapPlayer == nil then
-        Log:Error("mapPlayer == nil");
-        return ProtoLua_ProtoErrCode.ERR_UNKNOW;
+        Log:Error("mapPlayer == nil")
+        return ProtoLua_ProtoErrCode.ERR_UNKNOW
     end
 
     -- 设置玩家所在的地图ID
@@ -82,33 +82,35 @@ function PlayerCmptMap:EnterNewMap(mapId)
         width = map:GetTileMapWidth(),
         height = map:GetTileMapHeight(),
         mapId = map:GetMapId()
-    };
-    local MsgHandler = require("MsgHandlerLogic");
-    MsgHandler:Send2Client(self:GetPlayer():GetClientGID(), self:GetPlayer():GetWorkerIdx(),
-        ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA, protoCSMapNotifyInitData);
+    }
+    local MsgHandler = require("MsgHandlerLogic")
+    MsgHandler:Send2Client(
+        self:GetPlayer():GetClientGID(), self:GetPlayer():GetWorkerIdx(),
+        ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP_NOTIFY_INIT_DATA, protoCSMapNotifyInitData
+    )
 
-    return ProtoLua_ProtoErrCode.OK;
+    return ProtoLua_ProtoErrCode.OK
 end
 
 ---@param mapId integer
 ---@return integer
 function PlayerCmptMap:MapEnterReq(mapId)
     -- 只要请求加入地图就离开当前地图
-    self:LeaveCurrMap();
+    self:LeaveCurrMap()
     -- 加入目标地图
-    return self:EnterNewMap(mapId);
+    return self:EnterNewMap(mapId)
 end
 
 ---@return integer
 function PlayerCmptMap:MapLeaveReq()
     self:LeaveCurrMap()
-    return ProtoLua_ProtoErrCode.OK;
+    return ProtoLua_ProtoErrCode.OK
 end
 
 ---@return integer
 function PlayerCmptMap:PingReq()
     if self:HasInMap() then
-        local currMap = MapMgr.GetMap(self.nowMapId);
+        local currMap = MapMgr.GetMap(self.nowMapId)
         if currMap == nil then
             return TimeMgr.GetMS()
         end
@@ -124,17 +126,17 @@ function PlayerCmptMap:MapInputReq(message)
         return
     end
 
-    local currMap = MapMgr.GetMap(self.nowMapId);
+    local currMap = MapMgr.GetMap(self.nowMapId)
     if currMap == nil then
         return
     end
 
-    local dirX = message.dirX;
-    local dirY = message.dirY;
-    local seq = message.seq;
-    local clientTime = message.clientTime;
+    local dirX = message.dirX
+    local dirY = message.dirY
+    local seq = message.seq
+    local clientTime = message.clientTime
 
-    currMap:MapPlayerInput(self:GetPlayer():GetUserId(), dirX, dirY, seq, clientTime);
+    currMap:MapPlayerInput(self:GetPlayer():GetUserId(), dirX, dirY, seq, clientTime)
 end
 
-return PlayerCmptMap;
+return PlayerCmptMap

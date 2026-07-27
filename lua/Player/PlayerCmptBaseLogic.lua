@@ -1,7 +1,7 @@
 ---@class PlayerCmptBaseType
 ---@field owner Player
 
----@class PlayerCmptBase:PlayerCmptBaseType
+---@class PlayerCmptBase: PlayerCmptBaseType
 local PlayerCmptBase = require("PlayerCmptBaseData")
 local Log = require("Log")
 

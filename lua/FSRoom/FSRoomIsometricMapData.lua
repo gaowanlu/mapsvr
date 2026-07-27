@@ -1,3 +1,3 @@
-FSRoomIsometricMap = FSRoomIsometricMap or {};
-FSRoomIsometricMap.__index = FSRoomIsometricMap;
-return FSRoomIsometricMap;
+FSRoomIsometricMap = FSRoomIsometricMap or {}
+FSRoomIsometricMap.__index = FSRoomIsometricMap
+return FSRoomIsometricMap

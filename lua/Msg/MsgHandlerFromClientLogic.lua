@@ -291,10 +291,7 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT] = function 
     player:GetComponents().map3d:MapShootReq(message)
 
     ---@type ProtoLua_ProtoCSResMap3DShoot
-    local res = {
-        ret = 0,
-        damage = 100
-    }
+    local res = { ret = 0, damage = 100 }
 
     MsgHandler:Send2Client(clientGID, workerIdx, ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_MAP3D_SHOOT, res)
 end
