@@ -20,7 +20,7 @@ Although the C++ Avant framework creates three types of Lua VMs (`Main`, `Worker
 
 ### End-to-End Message Flow
 
-```
+```text
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │  Client      │     │  C++ Main    │     │  C++ Worker  │     │  Other VM    │
 │  (TCP/WS)    │ ──► │  Thread      │ ──► │  Thread      │ ──► │  (MapSvr)    │
@@ -30,7 +30,6 @@ Although the C++ Avant framework creates three types of Lua VMs (`Main`, `Worker
        │                                                              │
        └──────────────────────────────────────────────────────────────┘
                           (Direct response via workerIdx)
-
 ```
 
 1. **Ingress**: C++ Main Thread accepts a connection $\rightarrow$ assigns to a C++ Worker Thread.
@@ -44,19 +43,17 @@ Although the C++ Avant framework creates three types of Lua VMs (`Main`, `Worker
 
 Database operations are decoupled into a separate Go service (`dbsvrgo`) communicating with MapSvr's Other VM via a custom TCP Protobuf IPC stream.
 
-```
+```text
 ┌──────────────────────────────────────┐          ┌──────────────────────────┐
 │         Other VM (MapSvr.lua)        │          │       dbsvrgo (Go)       │
 │  - Player, Map, FSRoom logic         │          │  - client.Client (RPC)   │
 │  - MsgHandler:Send2IPC(appId, ...)   │ ◄──────► │  - worker.Worker (Queue) │
 └──────────────────────────────────────┘          │  - mapper.BuildSQL       │
                    ▲                              └──────────────────────────┘
-                   │                                            │
-         C++ Avant IPC Tunnel                                   ▼
-      (Mapped via unique AppIDs)                        ┌──────────────────┐
-                                                        │ PostgreSQL DB    │
-                                                        └──────────────────┘
-
+                   │                                            ▼
+         C++ Avant IPC Tunnel                               ┌──────────────────┐
+      (Mapped via unique AppIDs)                            │ PostgreSQL DB    │
+                                                            └──────────────────┘
 ```
 
 ### Database Request Pipeline
@@ -82,6 +79,17 @@ The `avant` module is injected into the Lua environment with the following inter
 * `avant:Lua2Protobuf(message, msg_type, cmd, param1, param2, param3)`: Converts Lua tables to binary Protobuf.
 * `avant:GetDBSvrGoAppID()`: Retrieves target database service identifier from configuration.
 
+### Async & Coroutine Management
+
+The `Async` module provides a managed coroutine scheduler (`CoroutineMgr`) to handle asynchronous tasks with timeouts and manual wakeups.
+
+* `CoroutineMgr.Spawn(func, ...)`: Creates and starts a new managed coroutine. Returns `sessionID`.
+* `CoroutineMgr.Wait(timeout)`: Suspends the current coroutine. If `timeout` is provided, it returns `(isTimeout, ...)` when resumed or timed out.
+* `CoroutineMgr.Wakeup(sessionID, ...)`: Resumes a suspended coroutine with the provided arguments.
+* `CoroutineMgr.Kill(sessionID)`: Forces a coroutine to terminate.
+* `CoroutineMgr.DebugDump()`: Logs detailed status of all active coroutine sessions for debugging.
+* `CoroutineMgr.SetTag(tag)`: Assigns a debug tag to the current coroutine.
+
 ### Protocol Command Layout (`protocol/*.proto`)
 
 * `proto_cmd.proto`: Over 50 command definitions (e.g., `LOGIN`, `PING`, `DB_*`, `UDP_*`).
@@ -92,10 +100,11 @@ The `avant` module is injected into the Lua environment with the following inter
 
 ---
 
-## 4. Repository & Directory Directory Layout
+## 4. Repository & Directory Layout
 
-```
+```text
 ├── lua/                           # Active Game Logic (Other VM)
+│   ├── Async/                    # Asynchronous task & coroutine management
 │   ├── Player/                    # Player entity, components (Bag, Info, Map, FSRoom)
 │   ├── Msg/                       # Message routing (FromClient, FromOther, FromUDP)
 │   ├── Map/                       # 2D grid maps & navigation
@@ -111,7 +120,6 @@ The `avant` module is injected into the Lua environment with the following inter
 ├── testing/                       # TypeScript/Node.js client test suite
 ├── src/app/                       # C++ Avant custom plugins (lua_plugin.cpp)
 └── avant_dir/                     # Upstream Avant Framework (Git Submodule - DO NOT COMMIT)
-
 ```
 
 ---
@@ -120,36 +128,29 @@ The `avant` module is injected into the Lua environment with the following inter
 
 ### Build & Run MapSvr
 
+Use the automation scripts to manage the build process:
+
+* `./build.sh`: Performs a full build (generates Lua types, copies files to Avant, compiles C++ core, copies binary back, and builds `dbsvrgo`).
+* `./clean.sh`: Cleans the environment (removes `thirdparty`, generated Lua types, binaries, and logs).
+* `./update.sh`: Updates the `thirdparty/avant` submodule and runs `clean.sh`.
+
+To build and run the server:
+
 ```bash
-# 1. Copy local MapSvr application code to avant_dir
-./copy_mapsvr2avant.sh
-
-# 2. Compile the C++ binary
-cd avant_dir
-cmake -DAVANT_JIT_VERSION=ON ..
-make -j3
-
-# 3. Pull binary back to root and execute
-cd ..
-./copy_avant_bin.sh
+./build.sh
 ./avant --mapsvr
-
 ```
 
 ### Database & Testing Setup
 
+The database service (`dbsvrgo`) is built as part of `./build.sh`.
+
+To run end-to-end integration tests:
+
 ```bash
-# Generate Lua types from Protobuf definitions
-node generate_proto_lua.js ./protocol/ ./lua/ProtoLua/
-
-# Compile dbsvrgo
-cd dbsvrgo && ./build.sh && cd ..
-
-# Run end-to-end integration tests
 cd testing
 npm install && npm run proto_gen && npm run build
 node dist/testing_client.js
-
 ```
 
 ### Hot-Reloading Lua Logic
@@ -157,14 +158,41 @@ node dist/testing_client.js
 MapSvr supports zero-downtime hot reloading of game logic.
 
 * **Trigger**: Send a user signal 1 to the running C++ process:
+
 ```bash
 kill -SIGUSR1 <PID>
-
 ```
 
-
 * **Reload Scope**: Managed inside `MapSvr.OnReload()`. This safely reloads core components (e.g., `PlayerLogic`, `MapLogic`, `FSRoomLogic`, and all message handler files) without tearing down existing socket connections.
+
+### Viewing Logs
+
+* **Standard Logs**: Check the `log/` directory and look for the most recent date-stamped file (e.g., `log/YYYY-MM-DD_HH.log`).
+* **Console Output**: Monitor `server_output.log` in the project root for real-time process stdout/stderr.
 
 ### Submodule Rules
 
 > ⛔ **Strict Constraint**: Never commit changes to the `avant_dir/` subdirectory. It is an upstream Git submodule. Any modifications there must only be done locally for experimental debugging.
+
+## 6. Git Commit Convention
+
+To maintain a clean and readable history, please follow this commit message format:
+
+**Format:** `<type>: <description>`
+
+**Common Types:**
+
+* `feat`: A new feature.
+* `fix`: A bug fix.
+* `update`: Updating dependencies, versions, or third-party code.
+* `test`: Adding or updating tests.
+* `docs`: Documentation only changes.
+* `refactor`: A code change that neither fixes a bug nor adds a new feature.
+* `chore`: Updating build tasks, package manager configs, etc.
+
+**Examples:**
+
+* `feat: implement player inventory system`
+* `fix: resolve memory leak in FSRoom logic`
+* `update: upgrade avant to latest commit`
+```

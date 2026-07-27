@@ -11,6 +11,7 @@ require("ProtoLuaImport");
 local Log = require("Log");
 local TimeMgr = require("TimeMgrLogic")
 local CoroutineMgr = require("CoroutineMgrLogic")
+local CoroutineMgrTest = require("CoroutineMgrTest")
 local MsgHandler = require("MsgHandlerLogic")
 local PlayerMgr = require("PlayerMgrLogic")
 local MapMgr = require("MapMgrLogic")
@@ -23,6 +24,8 @@ local AlgorithmRandom = require("AlgorithmRandomLogic")
 function MapSvr.OnInit()
     AlgorithmRandom.RandomSeed(math.floor(TimeMgr.GetS()))
     MapSvr.safeStop = false;
+
+    CoroutineMgrTest.Run()
 end
 
 --- 线程被终止时触发一次
