@@ -3,77 +3,281 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>AVANT — 3D FPS 客户端 (修复版 + 坐标面板 + Y=500000 地面)</title>
+    <title>AVANT — MAPSVR·3D 服务器权威客户端</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* ============================================================
+           AVANT MAPSVR·3D — 服务器权威客户端 (重新设计)
+           主题: 玻璃座舱 (Glass Cockpit) + 全屏世界
+           语义色: 薄荷绿=已连接/本机/权威 · 钢蓝=标签 · 琥珀=漂移告警
+                   红=伤害/错误 · 蓝=其他玩家
+           ============================================================ */
+        :root {
+            --ink: #070a12;
+            --panel: rgba(9, 14, 26, .86);
+            --panel-solid: #0d1424;
+            --signal: #6fe9b0;
+            --steel: #8fa6c8;
+            --ember: #ff5d5d;
+            --amber: #ffc857;
+            --ally: #3d9bff;
+            --line: rgba(143, 166, 200, .16);
+            --line-strong: rgba(143, 166, 200, .32);
+            --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            --sans: 'Inter', system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
+            --disp: 'Chakra Petch', 'Inter', system-ui, sans-serif;
+            --ease: cubic-bezier(.22, .61, .36, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             margin: 0;
             height: 100%;
             overflow: hidden;
-            background: #050b16;
-            color: #e6edf3;
-            font-family: system-ui, -apple-system, "Microsoft YaHei";
+            background: var(--ink);
+            color: #dce7ff;
+            font-family: var(--sans);
             user-select: none;
+            -webkit-font-smoothing: antialiased;
         }
 
-        #ui {
+        :focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: 2px;
+        }
+
+        /* ---------- 顶部遥测条 (玻璃座舱读数条) ---------- */
+        #telem {
             position: fixed;
-            top: 12px;
-            left: 12px;
-            width: 300px;
-            background: rgba(5, 15, 30, .85);
-            border: 1px solid rgba(255, 255, 255, .08);
-            border-radius: 8px;
-            padding: 10px;
-            z-index: 100;
-        }
-
-        input,
-        button {
-            width: 100%;
-            margin-top: 6px;
-            padding: 7px;
-            background: #0b1a2c;
-            border: 1px solid rgba(255, 255, 255, .08);
-            color: #e6edf3;
-            border-radius: 6px;
-            font-size: 12px;
-        }
-
-        button {
-            cursor: pointer;
-            letter-spacing: .5px;
-        }
-
-        button:hover {
-            background: #0f2540;
-        }
-
-        #btnEnter {
-            background: #1b6b3a;
-            border-color: #2eaa5a;
-        }
-
-        #btnEnter:hover {
-            background: #238a4a;
-        }
-
-        #btnCreateUser {
-            background: #3a3f6b;
-            border-color: #5a60aa;
-        }
-
-        pre {
-            margin-top: 8px;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            background: linear-gradient(180deg, rgba(6, 9, 16, .94), rgba(6, 9, 16, .72));
+            border-bottom: 1px solid var(--line);
+            backdrop-filter: blur(8px);
+            z-index: 90;
+            font-family: var(--mono);
             font-size: 11px;
-            max-height: 150px;
-            overflow: auto;
-            background: #020814;
-            padding: 6px;
-            border-radius: 4px;
+            letter-spacing: .06em;
         }
 
+        .wordmark {
+            font-family: var(--disp);
+            font-weight: 700;
+            letter-spacing: .32em;
+            font-size: 15px;
+            color: #eaf2ff;
+            white-space: nowrap;
+        }
+
+        .wordmark-sub {
+            font-family: var(--mono);
+            font-size: 9px;
+            letter-spacing: .24em;
+            color: var(--signal);
+            margin-left: 12px;
+            white-space: nowrap;
+        }
+
+        .telem-seg {
+            display: flex;
+            align-items: baseline;
+            gap: 7px;
+            padding: 0 14px;
+            height: 22px;
+            border-left: 1px solid var(--line);
+            white-space: nowrap;
+        }
+
+        .tlbl {
+            color: var(--steel);
+            font-size: 9px;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+        }
+
+        .dot {
+            align-self: center;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #3a4659;
+            box-shadow: 0 0 0 3px rgba(58, 70, 89, .18);
+            transition: background .2s, box-shadow .2s;
+        }
+
+        .dot.online {
+            background: var(--signal);
+            box-shadow: 0 0 0 3px rgba(111, 233, 176, .18), 0 0 10px rgba(111, 233, 176, .5);
+        }
+
+        .dot.connecting {
+            background: var(--amber);
+            box-shadow: 0 0 0 3px rgba(255, 200, 87, .18);
+        }
+
+        .dot.error {
+            background: var(--ember);
+            box-shadow: 0 0 0 3px rgba(255, 93, 93, .18);
+        }
+
+        .console-tab {
+            margin-left: auto;
+            pointer-events: auto;
+            background: transparent;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: var(--steel);
+            font: 600 10px var(--disp);
+            letter-spacing: .14em;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: color .15s, border-color .15s, background .15s;
+        }
+
+        .console-tab:hover {
+            color: var(--signal);
+            border-color: var(--signal);
+            background: rgba(111, 233, 176, .06);
+        }
+
+        /* ---------- 左侧连接控制台 (可折叠滑出) ---------- */
+        #console {
+            position: fixed;
+            left: 0;
+            top: 42px;
+            bottom: 0;
+            width: 298px;
+            padding: 14px;
+            background: var(--panel);
+            border-right: 1px solid var(--line);
+            border-top: 1px solid var(--line);
+            backdrop-filter: blur(12px);
+            z-index: 80;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transform: translateX(0);
+            transition: transform .28s var(--ease);
+        }
+
+        #console.collapsed {
+            transform: translateX(-105%);
+        }
+
+        .field span {
+            display: block;
+            font: 600 9px var(--disp);
+            letter-spacing: .18em;
+            color: var(--steel);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .field-row .field {
+            flex: 1;
+        }
+
+        input {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #0a0f1c;
+            color: #e8f0ff;
+            font: 500 13px/1 var(--mono);
+            outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+        input:focus-visible {
+            border-color: var(--signal);
+            box-shadow: 0 0 0 3px rgba(111, 233, 176, .14);
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .btn {
+            cursor: pointer;
+            padding: 9px 0;
+            border-radius: 6px;
+            border: 1px solid var(--line-strong);
+            background: transparent;
+            color: #dce7ff;
+            font: 600 12px var(--disp);
+            letter-spacing: .14em;
+            transition: color .15s, border-color .15s, background .15s, transform .1s;
+        }
+
+        .btn:hover {
+            color: var(--signal);
+            border-color: var(--signal);
+            background: rgba(111, 233, 176, .06);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-enter {
+            background: linear-gradient(180deg, #0f3d2a, #0a2a1d);
+            border-color: rgba(111, 233, 176, .5);
+            color: var(--signal);
+        }
+
+        .btn-enter:hover {
+            background: linear-gradient(180deg, #145036, #0e3425);
+            border-color: var(--signal);
+        }
+
+        .btn-alt {
+            border-color: var(--line);
+            color: var(--steel);
+        }
+
+        .btn-alt:hover {
+            color: var(--amber);
+            border-color: var(--amber);
+            background: rgba(255, 200, 87, .05);
+        }
+
+        #log {
+            flex: 1;
+            min-height: 0;
+            margin: 0;
+            overflow: auto;
+            padding: 9px;
+            background: #05070e;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font: 400 11px/1.6 var(--mono);
+            color: #9fb6d8;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* ---------- HUD 图层 ---------- */
         #hud {
             position: fixed;
             inset: 0;
@@ -81,13 +285,14 @@
             z-index: 50;
         }
 
+        /* 准星 */
         #crosshair {
             position: fixed;
             top: 50%;
             left: 50%;
+            width: 20px;
+            height: 20px;
             transform: translate(-50%, -50%);
-            width: 22px;
-            height: 22px;
             pointer-events: none;
         }
 
@@ -95,13 +300,13 @@
         #crosshair::after {
             content: '';
             position: absolute;
-            background: rgba(255, 80, 80, .9);
+            background: rgba(255, 93, 93, .9);
         }
 
         #crosshair::before {
             left: 50%;
             top: 0;
-            width: 2px;
+            width: 1.5px;
             height: 100%;
             transform: translateX(-50%);
         }
@@ -109,7 +314,7 @@
         #crosshair::after {
             top: 50%;
             left: 0;
-            height: 2px;
+            height: 1.5px;
             width: 100%;
             transform: translateY(-50%);
         }
@@ -118,25 +323,101 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 3px;
-            height: 3px;
+            width: 2.5px;
+            height: 2.5px;
             border-radius: 50%;
-            background: #ff5050;
+            background: #ff5d5d;
             transform: translate(-50%, -50%);
         }
 
+        @keyframes recoil {
+            0% {
+                transform: translate(-50%, -50%) scale(1.9);
+                opacity: .35;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        #crosshair.kick {
+            animation: recoil .14s ease;
+        }
+
+        /* 击杀播报 */
+        #killfeed {
+            position: fixed;
+            top: 56px;
+            right: 14px;
+            width: 290px;
+            text-align: right;
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        #killfeed div {
+            background: rgba(5, 8, 14, .66);
+            border: 1px solid var(--line);
+            border-left: 2px solid var(--ember);
+            padding: 6px 10px;
+            margin-bottom: 5px;
+            border-radius: 6px;
+            animation: kfIn .25s var(--ease), kfOut .6s ease 3.4s forwards;
+        }
+
+        @keyframes kfIn {
+            from {
+                opacity: 0;
+                transform: translateX(10px);
+            }
+        }
+
+        @keyframes kfOut {
+            to {
+                opacity: 0;
+            }
+        }
+
+        /* K/D/在线 统计仪表 */
+        #stats {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            gap: 18px;
+            padding: 11px 16px;
+            background: rgba(7, 10, 18, .6);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            text-align: center;
+        }
+
+        .stat .tlbl {
+            display: block;
+            font-size: 8px;
+            margin-bottom: 4px;
+        }
+
+        #stats b {
+            display: block;
+            font: 700 15px var(--mono);
+            color: #eaf2ff;
+        }
+
+        /* ---------- 底部 · 生命条 ---------- */
         #hpwrap {
             position: fixed;
-            bottom: 18px;
-            left: 18px;
-            width: 260px;
+            left: 16px;
+            bottom: 16px;
+            width: 250px;
         }
 
         #hpbar {
-            height: 14px;
-            background: rgba(0, 0, 0, .5);
-            border: 1px solid rgba(255, 255, 255, .2);
-            border-radius: 7px;
+            height: 12px;
+            background: rgba(0, 0, 0, .45);
+            border: 1px solid var(--line);
+            border-radius: 6px;
             overflow: hidden;
         }
 
@@ -144,101 +425,200 @@
             height: 100%;
             width: 100%;
             background: linear-gradient(90deg, #e63946, #ff8a5b);
-            transition: width .2s;
+            transition: width .2s var(--ease);
         }
 
         #hptext {
-            font-size: 11px;
-            color: #aaa;
-            margin-top: 3px;
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: .08em;
+            color: var(--steel);
+            margin-top: 5px;
         }
 
-        #killfeed {
+        /* ---------- 签名元素: SERVER AUTHORITY 漂移仪表 ----------
+           左侧工具 · 实时绘制「本机预测 vs 服务器权威」位置偏差 */
+        #authority {
             position: fixed;
-            top: 12px;
-            right: 12px;
-            width: 280px;
-            text-align: right;
-            font-size: 12px;
+            left: 16px;
+            bottom: 58px;
+            width: 250px;
+            padding: 12px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+            font-family: var(--mono);
+            z-index: 55;
         }
 
-        #killfeed div {
-            background: rgba(0, 0, 0, .5);
-            padding: 5px 9px;
-            margin-bottom: 4px;
-            border-radius: 4px;
-            border-left: 3px solid #e63946;
-            animation: fade 4s forwards;
+        #authority::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10px;
+            right: 10px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--signal), transparent);
+            opacity: .55;
         }
 
-        @keyframes fade {
-
-            0%,
-            70% {
-                opacity: 1
-            }
-
-            100% {
-                opacity: 0;
-            }
+        .instrument-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 9px;
         }
 
-        #stats {
-            position: fixed;
-            bottom: 18px;
-            right: 18px;
-            text-align: right;
-            font-size: 12px;
-            background: rgba(0, 0, 0, .4);
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, .08);
+        .instrument-title {
+            font-family: var(--disp);
+            font-weight: 600;
+            font-size: 10px;
+            letter-spacing: .26em;
+            color: var(--signal);
         }
 
+        .instrument-tag {
+            font-size: 9px;
+            letter-spacing: .14em;
+            color: var(--steel);
+        }
+
+        #driftCanvas {
+            width: 100%;
+            height: 40px;
+            display: block;
+            margin-bottom: 9px;
+        }
+
+        .ro {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 10px;
+            color: #c6d6f0;
+            margin: 3px 0;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .ro .lbl {
+            color: var(--steel);
+            font-size: 9px;
+            letter-spacing: .1em;
+            flex-shrink: 0;
+        }
+
+        .val {
+            font-size: 10px;
+            color: #dce7ff;
+            white-space: pre;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .val.good {
+            color: var(--signal);
+        }
+
+        .val.warn {
+            color: var(--amber);
+        }
+
+        .drift-row .lbl {
+            font-family: var(--disp);
+            font-weight: 600;
+            letter-spacing: .22em;
+            font-size: 9px;
+        }
+
+        .drift-row .val {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .drift-row .unit {
+            color: var(--steel);
+            font-size: 9px;
+            margin-left: 2px;
+        }
+
+        .cp-other {
+            font-size: 10px;
+            color: #b9cdf0;
+            line-height: 1.7;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cp-other .id {
+            color: var(--amber);
+        }
+
+        .cp-empty {
+            color: #51627d;
+            font-style: italic;
+            font-size: 10px;
+        }
+
+        .instrument-toggle {
+            pointer-events: auto;
+            margin-top: 9px;
+            width: 100%;
+            padding: 6px 8px;
+            background: transparent;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            color: var(--steel);
+            font: 600 10px var(--disp);
+            letter-spacing: .14em;
+            cursor: pointer;
+            transition: color .15s, border-color .15s, background .15s;
+        }
+
+        .instrument-toggle:hover {
+            color: var(--signal);
+            border-color: var(--signal);
+            background: rgba(111, 233, 176, .06);
+        }
+
+        #othersWrap {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height .25s var(--ease), opacity .2s;
+        }
+
+        #othersWrap.open {
+            max-height: 150px;
+            opacity: 1;
+            overflow-y: auto;
+        }
+
+        /* ---------- 底部中央提示 ---------- */
         #hint {
             position: fixed;
-            bottom: 12px;
+            bottom: 14px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(5, 15, 30, .85);
-            border: 1px solid rgba(255, 255, 255, .08);
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 12px;
+            background: rgba(7, 10, 18, .66);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 16px;
+            font: 500 11px/1 var(--sans);
+            letter-spacing: .06em;
+            color: var(--steel);
+            transition: opacity .4s, transform .4s;
         }
 
-        #blocker {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .6);
-            z-index: 200;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+        #hint.hide {
+            opacity: 0;
+            transform: translate(-50%, 8px);
         }
 
-        #blocker .card {
-            background: rgba(5, 15, 30, .95);
-            border: 2px solid rgba(255, 255, 255, .15);
-            border-radius: 14px;
-            padding: 34px 50px;
-            text-align: center;
-        }
-
-        #blocker h1 {
-            margin: 0 0 6px;
-            font-size: 26px;
-            letter-spacing: 2px;
-            color: #ff5050;
-        }
-
-        #blocker p {
-            margin: 4px 0;
-            color: #9fb0c3;
-            font-size: 13px;
-        }
-
+        /* ---------- 受击泛红 ---------- */
         #dmgflash {
             position: fixed;
             inset: 0;
@@ -252,119 +632,232 @@
             display: none !important;
         }
 
-        #coordPanel {
+        /* ---------- 进入遮罩 (点击进入第一人称) ---------- */
+        #blocker {
             position: fixed;
-            top: 12px;
-            left: 324px;
-            width: 300px;
-            background: rgba(5, 15, 30, .85);
-            border: 1px solid rgba(255, 80, 80, .35);
-            border-radius: 8px;
-            padding: 10px 12px;
-            z-index: 100;
-            pointer-events: none;
-            font-family: Consolas, Menlo, monospace;
-            font-size: 12px;
-            max-height: 70vh;
-            overflow: auto;
+            inset: 0;
+            background: radial-gradient(120% 120% at 50% 40%, rgba(6, 9, 16, .55), rgba(3, 5, 9, .92));
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
 
-        #coordPanel .cp-title {
-            color: #ff5050;
-            font-weight: bold;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
-            padding-bottom: 4px;
-            border-bottom: 1px solid rgba(255, 255, 255, .08);
+        #blocker .card {
+            text-align: center;
+            padding: 46px 62px;
+            border: 1px solid var(--line-strong);
+            border-radius: 14px;
+            background: rgba(9, 14, 26, .72);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
+            animation: cardIn .45s var(--ease);
         }
 
-        #coordPanel .cp-self {
-            color: #20c997;
-            margin: 2px 0;
-            line-height: 1.5;
+        @keyframes cardIn {
+            from {
+                opacity: 0;
+                transform: scale(.97) translateY(6px);
+            }
         }
 
-        #coordPanel .cp-self .lbl {
-            color: #9fb0c3;
+        #blocker .wordmark {
+            display: block;
+            font-size: 30px;
+            letter-spacing: .5em;
+            text-indent: .5em;
+            color: var(--signal);
+            margin-bottom: 12px;
         }
 
-        #coordPanel .cp-others-title {
-            color: #9fb0c3;
-            margin: 8px 0 4px;
-            padding-top: 4px;
-            border-top: 1px solid rgba(255, 255, 255, .08);
-            font-size: 11px;
+        #blocker h1 {
+            margin: 0 0 8px;
+            font-family: var(--disp);
+            font-weight: 600;
+            font-size: 20px;
+            letter-spacing: .16em;
+            color: #eaf2ff;
         }
 
-        #coordPanel .cp-other {
-            color: #3aa0ff;
-            margin: 1px 0;
-            line-height: 1.5;
-            word-break: break-all;
+        #blocker p {
+            margin: 4px 0;
+            color: var(--steel);
+            font-size: 12.5px;
         }
 
-        #coordPanel .cp-other .id {
-            color: #ffcc44;
+        #blocker .meta {
+            margin-top: 16px;
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: .08em;
+            color: rgba(143, 166, 200, .7);
         }
 
-        #coordPanel .cp-empty {
-            color: #555;
-            font-style: italic;
-            margin-top: 4px;
+        #blocker .enter-hint {
+            display: inline-block;
+            margin-top: 18px;
+            font: 700 11px var(--disp);
+            letter-spacing: .3em;
+            color: var(--signal);
+            border: 1px solid rgba(111, 233, 176, .4);
+            border-radius: 999px;
+            padding: 8px 22px;
+            animation: pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .45;
+            }
+        }
+
+        /* ---------- 无障碍与响应式 ---------- */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+
+        @media (max-width: 760px) {
+            #telem {
+                padding: 0 6px;
+            }
+
+            .telem-seg {
+                padding: 0 8px;
+            }
+
+            #telem .wordmark-sub,
+            #telem .seg-rtt {
+                display: none;
+            }
+
+            #console {
+                width: 100%;
+            }
+
+            #authority {
+                width: 200px;
+            }
+
+            #stats {
+                bottom: 12px;
+                right: 12px;
+                gap: 12px;
+                padding: 8px 12px;
+            }
+
+            #stats b {
+                font-size: 12px;
+            }
+
+            #hint {
+                font-size: 10px;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div id="ui">
-        <div style="font-weight:bold;margin-bottom:4px;color:#ff5050;">AVANT FPS</div>
-        <input id="wsUrl" value="ws://127.0.0.1:20026">
-        <input id="userId" value="1">
-        <input id="password" value="1">
-        <button id="btnConnect">连接</button>
-        <button id="btnLogin">登录</button>
-        <button id="btnEnter">进入3D地图</button>
-        <button id="btnCreateUser">注册账号</button>
-        <pre id="log">未连接</pre>
-    </div>
 
-    <div id="coordPanel">
-        <div class="cp-title">实时坐标监控</div>
-        <div class="cp-self" id="cpSelfLocal"><span class="lbl">本机(预测):</span> --</div>
-        <div class="cp-self" id="cpSelfServer"><span class="lbl">服务器:　</span> --</div>
-        <div class="cp-self" id="cpSelfId"><span class="lbl">我的ID:　</span> --</div>
-        <div class="cp-others-title">其他玩家 (服务器坐标)</div>
-        <div id="cpOthers">
-            <div class="cp-empty">暂无其他玩家</div>
+    <!-- 顶部遥测条 -->
+    <header id="telem">
+        <span class="wordmark">AVANT</span><span class="wordmark-sub">MAPSVR·3D</span>
+        <div class="telem-seg">
+            <span class="dot offline" id="connDot"></span>
+            <span id="connState" style="color:var(--steel)">离线</span>
         </div>
-    </div>
+        <div class="telem-seg seg-user"><span class="tlbl">USER</span><span id="telemUser">—</span></div>
+        <div class="telem-seg seg-map"><span class="tlbl">MAP</span><span id="telemMap">—</span></div>
+        <div class="telem-seg seg-seq"><span class="tlbl">SEQ</span><span id="telemSeq">0</span></div>
+        <div class="telem-seg seg-rtt"><span class="tlbl">RTT</span><span id="telemRtt">—</span></div>
+        <div class="telem-seg seg-online"><span class="tlbl">在线</span><span id="telemOnline">0</span></div>
+        <button id="consoleTab" class="console-tab" aria-expanded="true">控制台 ▸</button>
+    </header>
 
+    <!-- 连接控制台 -->
+    <aside id="console" aria-label="连接控制台">
+        <label class="field"><span>WebSocket 地址</span>
+            <input id="wsUrl" value="ws://127.0.0.1:20026" spellcheck="false" autocomplete="off" />
+        </label>
+        <div class="field-row">
+            <label class="field"><span>userId</span><input id="userId" value="1" /></label>
+            <label class="field"><span>password</span><input id="password" value="1" type="password" /></label>
+        </div>
+        <div class="actions">
+            <button id="btnConnect" class="btn">连接</button>
+            <button id="btnLogin" class="btn">登录</button>
+            <button id="btnEnter" class="btn btn-enter">进入3D地图</button>
+            <button id="btnCreateUser" class="btn btn-alt">注册账号</button>
+        </div>
+        <pre id="log">等待连接…</pre>
+    </aside>
+
+    <!-- HUD 图层 -->
     <div id="hud">
-        <div id="crosshair">
-            <div class="dot"></div>
-        </div>
-        <div id="hpwrap">
-            <div id="hpbar">
-                <div id="hpfill"></div>
+        <div id="crosshair"><div class="dot"></div></div>
+
+        <!-- 签名仪表: 服务器权威漂移监控 -->
+        <div id="authority">
+            <div class="instrument-head">
+                <span class="instrument-title">SERVER AUTHORITY</span>
+                <span class="instrument-tag">漂移监控</span>
             </div>
+            <canvas id="driftCanvas" width="440" height="80"></canvas>
+            <div class="ro drift-row">
+                <span class="lbl">漂移</span>
+                <span><span id="driftVal" class="val">—</span><span class="unit">u</span></span>
+            </div>
+            <div class="ro"><span id="cpSelfLocal">本机(预测): --</span></div>
+            <div class="ro"><span id="cpSelfServer">服务器: --</span></div>
+            <div class="ro"><span id="cpSelfId">我的ID: --</span></div>
+            <button id="toggleOthers" class="instrument-toggle">其他玩家 (0) ▾</button>
+            <div id="othersWrap">
+                <div id="cpOthers"><div class="cp-empty">暂无其他玩家</div></div>
+            </div>
+        </div>
+
+        <!-- 生命条 -->
+        <div id="hpwrap">
+            <div id="hpbar"><div id="hpfill"></div></div>
             <div id="hptext">HP 100 / 100</div>
         </div>
+
+        <!-- 击杀播报 -->
         <div id="killfeed"></div>
-        <div id="stats">击杀 <b id="kills">0</b> · 死亡 <b id="deaths">0</b><br>在线 <b id="online">0</b></div>
-    </div>
 
-    <div id="hint">WASD 移动 · Space 跳跃 · 鼠标瞄准 · 点击射击 · ESC 解锁</div>
-    <div id="dmgflash"></div>
-
-    <div id="blocker" class="hidden">
-        <div class="card">
-            <h1>AVANT</h1>
-            <p style="font-size:15px;color:#e6edf3;">点击进入第一人称</p>
-            <p>WASD 移动 / Space 跳跃 / 鼠标瞄准 / 点击射击</p>
-            <p style="opacity:.6;">按 ESC 退出鼠标锁定</p>
+        <!-- K/D/在线 统计 -->
+        <div id="stats">
+            <div class="stat"><span class="tlbl">KILLS</span><b id="kills">0</b></div>
+            <div class="stat"><span class="tlbl">DIES</span><b id="deaths">0</b></div>
+            <div class="stat"><span class="tlbl">ON-LINE</span><b id="online">0</b></div>
         </div>
     </div>
 
+    <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · ESC 解锁</div>
+    <div id="dmgflash"></div>
+
+    <!-- 进入遮罩 -->
+    <div id="blocker" class="hidden">
+        <div class="card">
+            <span class="wordmark">AVANT</span>
+            <h1>点击进入第一人称</h1>
+            <p>WASD 移动 / 空格 跳跃 / 鼠标 瞄准 / 点击 射击</p>
+            <p class="meta">按 ESC 退出鼠标锁定 · 左下角实时监控服务器权威坐标</p>
+            <span class="enter-hint">点击 进入 ▶</span>
+        </div>
+    </div>
+
+    <!-- 依赖 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
     <script>
@@ -414,6 +907,8 @@ message ProtoCSResMap3DShoot{ int32 ret=1; int32 damage=2; }
 message ProtoCSMap3DNotifyBullet{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; int32 dirX=6; int32 dirY=7; int32 dirZ=8; uint64 lifeTime=9; uint64 spawnTime=10; }
 message ProtoCSMap3DNotifyHitPlayer{ string bulletId=1; string targetId=2; int32 damage=3; int32 targetX=4; int32 targetY=5; int32 targetZ=6; }
 message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp=3; int32 damage=4; int32 x=5; int32 y=6; int32 z=7; }
+message ProtoCSReqMap3DPing{ uint64 clientTime=1; }
+message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 `;
 
         const root = protobuf.parse(protoText).root;
@@ -431,6 +926,8 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
         const T_Bullet = root.lookupType("avant.ProtoCSMap3DNotifyBullet");
         const T_Hit = root.lookupType("avant.ProtoCSMap3DNotifyHitPlayer");
         const T_Hurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt");
+        const T_Ping = root.lookupType("avant.ProtoCSReqMap3DPing");
+        const T_Pong = root.lookupType("avant.ProtoCSResMap3DPong");
 
         const SHOOT_DIST = 200;
         const GROUND_Y = 500000;
@@ -455,12 +952,96 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
             setTimeout(() => d.remove(), 4000);
         }
 
+        /* ------- 新增: 遥测条 / 控制台 / 漂移仪表 引用 ------- */
+        const telemUserEl = document.getElementById("telemUser");
+        const telemMapEl = document.getElementById("telemMap");
+        const telemSeqEl = document.getElementById("telemSeq");
+        const telemRttEl = document.getElementById("telemRtt");
+        const telemOnlineEl = document.getElementById("telemOnline");
+        const connDotEl = document.getElementById("connDot");
+        const connStateEl = document.getElementById("connState");
+        const consoleEl = document.getElementById("console");
+        const consoleTabEl = document.getElementById("consoleTab");
+        const hintEl = document.getElementById("hint");
+        const crosshairEl = document.getElementById("crosshair");
+
+        function setConn(state) {
+            connDotEl.className = "dot " + state;
+            const txt = { offline: "离线", connecting: "连接中", online: "已连接", error: "错误" }[state] || state;
+            connStateEl.textContent = txt;
+            connStateEl.style.color = state === "online" ? "var(--signal)" : state === "error" ? "var(--ember)" : "var(--steel)";
+        }
+
+        function setConsole(open) {
+            consoleEl.classList.toggle("collapsed", !open);
+            consoleTabEl.innerHTML = open ? "控制台 ▸" : "◂ 控制台";
+            consoleTabEl.setAttribute("aria-expanded", String(open));
+        }
+        consoleTabEl.addEventListener("click", () => {
+            setConsole(consoleEl.classList.contains("collapsed"));
+        });
+
+        /* ------- 漂移仪表 (签名元素) ------- */
+        const driftCanvas = document.getElementById("driftCanvas");
+        const driftCtx = driftCanvas.getContext("2d");
+        const driftValEl = document.getElementById("driftVal");
+        const toggleOthersEl = document.getElementById("toggleOthers");
+        const othersWrapEl = document.getElementById("othersWrap");
+        const driftBuf = [];
+        let lastDrift = 0;
+        let driftGood = true;
+        let othersOpen = false;
+
+        toggleOthersEl.addEventListener("click", () => {
+            othersOpen = !othersOpen;
+            othersWrapEl.classList.toggle("open", othersOpen);
+        });
+
+        function drawDrift() {
+            const cw = driftCanvas.width, ch = driftCanvas.height;
+            driftCtx.clearRect(0, 0, cw, ch);
+            // 基线
+            driftCtx.strokeStyle = "rgba(143,166,200,.18)";
+            driftCtx.lineWidth = 1;
+            driftCtx.beginPath();
+            driftCtx.moveTo(0, ch - 4);
+            driftCtx.lineTo(cw, ch - 4);
+            driftCtx.stroke();
+            if (!selfId || driftBuf.length === 0) {
+                driftValEl.textContent = "—";
+                driftValEl.className = "val";
+                return;
+            }
+            const max = 20;
+            const color = driftGood ? "#6fe9b0" : "#ffc857";
+            const n = driftBuf.length;
+            driftCtx.strokeStyle = color;
+            driftCtx.lineWidth = 2;
+            driftCtx.beginPath();
+            for (let i = 0; i < n; i++) {
+                const x = 2 + (i / 39) * (cw - 4);
+                const y = ch - 4 - Math.min(driftBuf[i], max) / max * (ch - 10);
+                i === 0 ? driftCtx.moveTo(x, y) : driftCtx.lineTo(x, y);
+            }
+            driftCtx.stroke();
+            // 当前采样点
+            const cx = 2 + ((n - 1) / 39) * (cw - 4);
+            const cy = ch - 4 - Math.min(driftBuf[n - 1], max) / max * (ch - 10);
+            driftCtx.beginPath();
+            driftCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+            driftCtx.fillStyle = color;
+            driftCtx.fill();
+            driftValEl.textContent = lastDrift.toFixed(1);
+            driftValEl.className = "val " + (driftGood ? "good" : "warn");
+        }
+
         let ws = null;
         function sendInner(type, obj, cmd) {
             if (!ws || ws.readyState !== 1) return;
             const inner = type.encode(type.create(obj)).finish();
             const pkg = ProtoPackage.encode(ProtoPackage.create({ cmd, protocol: inner })).finish();
             ws.send(pkg);
+            telemSeqEl.textContent = String(lastSeq);
         }
 
         function handlePkg(msg) {
@@ -469,6 +1050,7 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA: {
                     const d = T_Init.decode(msg.protocol);
                     selfId = String(d.userId);
+                    telemUserEl.textContent = selfId;
                     if (!players.has(selfId)) {
                         const p = createPlayerMesh(true, selfId);
                         players.set(selfId, p);
@@ -484,6 +1066,7 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA: {
                     const s = T_State.decode(msg.protocol);
                     document.getElementById("online").textContent = s.players.length;
+                    telemOnlineEl.textContent = String(s.players.length);
                     const seen = new Set();
                     s.players.forEach(p => {
                         const pId = String(p.userId);
@@ -506,6 +1089,8 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES:
+                    telemMapEl.textContent = "4";
+                    setConsole(false);
                     document.getElementById("blocker").classList.remove("hidden");
                     break;
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
@@ -535,16 +1120,29 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
                     if (r.damage > 0) { kills++; document.getElementById("kills").textContent = kills; }
                     break;
                 }
+                case Cmd.PROTO_CMD_CS_RES_MAP3D_PONG: {
+                    try {
+                        const o = T_Pong.toObject(T_Pong.decode(msg.protocol), { longs: Number });
+                        const rtt = Date.now() - Number(o.clientTime);
+                        if (rtt >= 0 && rtt < 60000) {
+                            telemRttEl.textContent = rtt + "ms";
+                            telemRttEl.style.color = "var(--signal)";
+                        }
+                    } catch (e) { /* 服务器未实现 ping/pong 则忽略 */ }
+                    break;
+                }
             }
         }
 
         document.getElementById("btnConnect").onclick = () => {
             if (ws && ws.readyState === 1) return;
+            telemUserEl.textContent = document.getElementById("userId").value;
+            setConn("connecting");
             ws = new WebSocket(document.getElementById("wsUrl").value);
             ws.binaryType = "arraybuffer";
-            ws.onopen = () => log("✓ WS 已连接");
-            ws.onclose = () => log("✗ WS 断开");
-            ws.onerror = () => log("✗ WS 错误");
+            ws.onopen = () => { log("✓ WS 已连接"); setConn("online"); };
+            ws.onclose = () => { log("✗ WS 断开"); setConn("offline"); };
+            ws.onerror = () => { log("✗ WS 错误"); setConn("error"); };
             ws.onmessage = ev => {
                 try {
                     const msg = ProtoPackage.decode(new Uint8Array(ev.data));
@@ -553,6 +1151,7 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
             };
         };
         document.getElementById("btnLogin").onclick = () => {
+            telemUserEl.textContent = document.getElementById("userId").value;
             sendInner(T_Login, { userId: document.getElementById("userId").value, password: document.getElementById("password").value }, Cmd.PROTO_CMD_CS_REQ_LOGIN);
         };
         document.getElementById("btnEnter").onclick = () => {
@@ -562,6 +1161,15 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
             sendInner(T_CreateU, { userId: document.getElementById("userId").value, password: document.getElementById("password").value }, Cmd.PROTO_CMD_CS_REQ_CREATE_USER);
         };
 
+        /* RTT 探测: 每 2.5s 发一次 3D ping (服务器未实现则显示 —) */
+        setInterval(() => {
+            if (ws && ws.readyState === 1) {
+                lastSeq++;
+                sendInner(T_Ping, { clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_PING);
+            }
+        }, 2500);
+
+        /* ---------------- Three.js 场景 ---------------- */
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a1322);
         scene.fog = new THREE.Fog(0x0a1322, 80, 400);
@@ -775,8 +1383,13 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
         const blocker = document.getElementById("blocker");
         blocker.addEventListener("click", () => { renderer.domElement.requestPointerLock(); });
         document.addEventListener("pointerlockchange", () => {
-            if (document.pointerLockElement === renderer.domElement) blocker.classList.add("hidden");
-            else if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
+            if (document.pointerLockElement === renderer.domElement) {
+                blocker.classList.add("hidden");
+                hintEl.classList.add("hide");
+            } else {
+                if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
+                hintEl.classList.remove("hide");
+            }
         });
         document.addEventListener("mousemove", e => {
             if (document.pointerLockElement !== renderer.domElement) return;
@@ -846,6 +1459,11 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
             flash.material.opacity = 1;
             flash.scale.setScalar(1 + Math.random() * 0.6);
 
+            // 准星后坐力反馈
+            crosshairEl.classList.remove("kick");
+            void crosshairEl.offsetWidth;
+            crosshairEl.classList.add("kick");
+
             const dir = new THREE.Vector3();
             camera.getWorldDirection(dir);
             const dirXn = Math.round(dir.x * 10000);
@@ -905,6 +1523,16 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
             cpAccum += dt;
             if (cpAccum < 0.1) return;
             cpAccum = 0;
+
+            // 漂移采样: |本机预测 - 服务器权威|
+            if (selfId) {
+                lastDrift = Math.hypot(localPos.x - serverPos.x, localPos.y - serverPos.y, localPos.z - serverPos.z);
+                driftGood = lastDrift < 3;
+                driftBuf.push(lastDrift);
+                if (driftBuf.length > 40) driftBuf.shift();
+            }
+            drawDrift();
+
             cpSelfIdEl.innerHTML = `<span class="lbl">我的ID:　</span> ${selfId ?? "--"}`;
             cpSelfLocalEl.innerHTML = `<span class="lbl">本机(预测):</span> X${fmt(localPos.x)} Y${fmt(localPos.y)} Z${fmt(localPos.z)}`;
             cpSelfSvrEl.innerHTML = `<span class="lbl">服务器:　</span> X${fmt(serverPos.x)} Y${fmt(serverPos.y)} Z${fmt(serverPos.z)}`;
@@ -916,6 +1544,7 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
                 html += `<div class="cp-other"><span class="id">[${id}]</span> X${fmt(t.x)} Y${fmt(t.y)} Z${fmt(t.z)}</div>`;
             });
             cpOthersEl.innerHTML = count ? html : `<div class="cp-empty">暂无其他玩家</div>`;
+            toggleOthersEl.textContent = `其他玩家 (${count}) ${othersOpen ? "▴" : "▾"}`;
         }
 
         const clock = new THREE.Clock();
