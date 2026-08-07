@@ -19,7 +19,10 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_TUNNEL_WORKER2OTHER_EVENT_NEW_C
         )
         return
     end
-    -- Log:Error("New Client Connection gid[%s] workerIdx[%d]", clientGID, workerIdx)
+
+    Log:Error(
+        "New Client Connection gid[%s] workerIdx[%d] IP [%s] Port [%d]", clientGID, workerIdx, message.ip, message.port
+    )
 
     local player = PlayerMgr.GetPlayerByPlayerId(playerId)
 
