@@ -620,6 +620,27 @@
             transform: translate(-50%, 8px);
         }
 
+        /* ---------- 小地图 ---------- */
+        #minimap {
+            position: fixed;
+            top: 50px;
+            left: 14px;
+            width: 158px;
+            height: 158px;
+            background: rgba(7, 10, 18, .55);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, .3);
+            z-index: 55;
+        }
+
+        @media (max-width: 760px) {
+            #minimap {
+                display: none;
+            }
+        }
+
         /* ---------- 受击泛红 ---------- */
         #dmgflash {
             position: fixed;
@@ -989,6 +1010,7 @@
         </div>
     </div>
 
+    <canvas id="minimap" width="316" height="316"></canvas>
     <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · ESC 解锁</div>
     <div id="dmgflash"></div>
 
@@ -1085,6 +1107,15 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 
         const SHOOT_DIST = 200;
         const GROUND_Y = 500000;
+
+        // ---- 坐标校准 ----
+        // 服务器以地图中心 (500000,500000) 为绝对坐标基准；客户端收到后平移到本地原点，
+        // 使人物出生点落在建筑地图中心 (0,0)。仅在检测到绝对坐标时启用，兼容本地坐标服务器。
+        const coordOffset = { x: 0, z: 0 };
+        let offsetReady = false;
+        function loc(v) {
+            return { x: offsetReady ? v.x - coordOffset.x : v.x, y: v.y, z: offsetReady ? v.z - coordOffset.z : v.z };
+        }
 
         const players = new Map();
         const bullets = new Map();
@@ -1231,6 +1262,13 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                 case Cmd.PROTO_CMD_CS_RES_LOGIN: log("✓ 登录成功"); break;
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA: {
                     const d = T_Init.decode(msg.protocol);
+                    // 首次收到位置时检测坐标基准：服务器返回绝对坐标(约500000)则建立本地偏移
+                    if (!offsetReady && (Math.abs(d.x) > 10000 || Math.abs(d.z) > 10000)) {
+                        coordOffset.x = d.x; coordOffset.z = d.z;
+                        offsetReady = true;
+                        log("✓ 坐标校准: 绝对坐标→本地 (" + d.x + "," + d.z + ")→(0,0)");
+                    }
+                    const sp = loc(d);
                     selfId = String(d.userId);
                     telemUserEl.textContent = selfId;
                     if (!players.has(selfId)) {
@@ -1238,11 +1276,11 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                         players.set(selfId, p);
                     }
                     const me = players.get(selfId);
-                    me.group.position.set(d.x, d.y, d.z);
-                    me.prevPos.set(d.x, d.y, d.z);
-                    me.targetPos.set(d.x, d.y, d.z);
-                    localPos.set(d.x, d.y, d.z);
-                    serverPos.set(d.x, d.y, d.z);
+                    me.group.position.set(sp.x, sp.y, sp.z);
+                    me.prevPos.set(sp.x, sp.y, sp.z);
+                    me.targetPos.set(sp.x, sp.y, sp.z);
+                    localPos.set(sp.x, sp.y, sp.z);
+                    serverPos.set(sp.x, sp.y, sp.z);
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_STATE_DATA: {
@@ -1258,9 +1296,10 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                             m = createPlayerMesh(pId === selfId, pId);
                             players.set(pId, m);
                         }
-                        m.targetPos.set(p.x, p.y, p.z);
+                        const lp = loc(p);
+                        m.targetPos.set(lp.x, lp.y, lp.z);
                         m.updateTime = performance.now();
-                        if (pId === selfId) serverPos.set(p.x, p.y, p.z);
+                        if (pId === selfId) serverPos.set(lp.x, lp.y, lp.z);
                     });
                     players.forEach((m, id) => {
                         if (!seen.has(id) && id !== selfId) {
@@ -1277,16 +1316,20 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                     break;
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
                     const b = T_Bullet.decode(msg.protocol);
+                    const lb = loc(b);
+                    b.x = lb.x; b.y = lb.y; b.z = lb.z;
                     handleBullet(b); break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER: {
                     const h = T_Hit.decode(msg.protocol);
+                    if (offsetReady) { h.targetX -= coordOffset.x; h.targetZ -= coordOffset.z; }
                     killfeed(`你命中 ${h.targetId} → -${h.damage}HP`);
                     createHitEffect(h.targetX, h.targetY, h.targetZ);
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT: {
                     const h = T_Hurt.decode(msg.protocol);
+                    if (offsetReady) { h.x -= coordOffset.x; h.z -= coordOffset.z; }
                     const targetIdStr = String(h.targetId);
                     if (targetIdStr === selfId) {
                         myHp = h.hp; myMaxHp = h.maxHp;
@@ -1402,20 +1445,109 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             t.repeat.set(40, 40); return t;
         }
 
-        const obstacles = [];
-        function addBox(x, yRel, z, w, h, d, color) {
+        /* ============================================================
+           地图: 工业战区 ARENA-4（固定布局，出生点(0,0)保持开阔）
+           构成: 边界围墙 + 四个象限建筑(带门洞) + 过道掩体墙
+                 + 四角哨塔 + 中央广场掩体 + 散落集装箱
+           ============================================================ */
+        const obstacles = [];                 // 参与碰撞的 AABB 盒
+        const obstacleMeshes = [];            // 参与射线检测的网格(射击/遮挡)
+
+        const M_WALL = 0x3b4f68;              // 主墙体 钢蓝
+        const M_WALL2 = 0x3c3550;             // 次墙体 紫灰
+        const M_COVER = 0x2e4257;             // 过道掩体 深蓝灰
+        const M_CRATE = 0x6b5538;             // 木箱 棕
+        const M_CRATE2 = 0x4f6473;            // 集装箱 灰蓝
+        const M_TOWER = 0x35455c;             // 哨塔
+        const M_ROOF = 0x232f41;              // 屋顶板
+
+        function addBox(x, yRel, z, w, h, d, color, collide = true) {
             const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-                new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
-            m.position.set(x, GROUND_Y + yRel, z); m.castShadow = true; m.receiveShadow = true;
-            scene.add(m); obstacles.push({ mesh: m, half: new THREE.Vector3(w / 2, h / 2, d / 2) });
+                new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0.05 }));
+            m.position.set(x, GROUND_Y + yRel, z);
+            m.castShadow = true; m.receiveShadow = true;
+            scene.add(m);
+            if (collide) {
+                obstacles.push({ mesh: m, half: new THREE.Vector3(w / 2, h / 2, d / 2) });
+                obstacleMeshes.push(m);
+            }
             return m;
         }
-        for (let i = 0; i < 14; i++) {
-            const x = (Math.random() - 0.5) * 180, z = (Math.random() - 0.5) * 180;
-            const h = 2 + Math.random() * 5, w = 3 + Math.random() * 4, d = 3 + Math.random() * 4;
-            addBox(x, h / 2, z, w, h, d, new THREE.Color().setHSL(0.6, 0.3, 0.2 + Math.random() * 0.1));
+
+        // 水平墙(沿X) / 垂直墙(沿Z)，t 为厚度
+        function wallH(x1, x2, z, h, t, color) {
+            addBox((x1 + x2) / 2, h / 2, z, Math.abs(x2 - x1), h, t, color);
         }
-        addBox(0, 1.5, 0, 4, 3, 4, 0x2a4a6a);
+        function wallV(z1, z2, x, h, t, color) {
+            addBox(x, h / 2, (z1 + z2) / 2, t, h, Math.abs(z2 - z1), color);
+        }
+
+        // 带门洞的水平/垂直墙：以 (gx,gz) 为中心留 gap 宽的门洞
+        function wallHGap(x1, x2, z, gx, gap, h, t, color) {
+            const a = gx - gap / 2, b = gx + gap / 2;
+            if (x1 < a) wallH(x1, a, z, h, t, color);
+            if (b < x2) wallH(b, x2, z, h, t, color);
+        }
+        function wallVGap(z1, z2, x, gz, gap, h, t, color) {
+            const a = gz - gap / 2, b = gz + gap / 2;
+            if (z1 < a) wallV(z1, a, x, h, t, color);
+            if (b < z2) wallV(b, z2, x, h, t, color);
+        }
+
+        // 四墙建筑(带悬挑屋顶板)；doors: {n,s,e,w} 对应带门洞的墙
+        function building(x, z, w, d, h, color, roof, doors) {
+            const t = 0.7, gap = 3.0;
+            const L = x - w / 2, R = x + w / 2, T = z - d / 2, B = z + d / 2;
+            if (doors.n) wallHGap(L, R, T, x, gap, h, t, color); else wallH(L, R, T, h, t, color);
+            if (doors.s) wallHGap(L, R, B, x, gap, h, t, color); else wallH(L, R, B, h, t, color);
+            if (doors.w) wallVGap(T, B, L, z, gap, h, t, color); else wallV(T, B, L, h, t, color);
+            if (doors.e) wallVGap(T, B, R, z, gap, h, t, color); else wallV(T, B, R, h, t, color);
+            if (roof) addBox(x, h + 0.15, z, w + 1.6, 0.3, d + 1.6, M_ROOF, false);
+        }
+
+        /* ---- 1. 边界围墙(可打，不可翻越) ---- */
+        const WALL_H = 4.5;
+        wallH(-58, 58, -58, WALL_H, 1.0, M_WALL);   // 北
+        wallH(-58, 58, 58, WALL_H, 1.0, M_WALL);    // 南
+        wallV(-58, 58, -58, WALL_H, 1.0, M_WALL);   // 西
+        wallV(-58, 58, 58, WALL_H, 1.0, M_WALL);    // 东
+
+        /* ---- 2. 四个象限建筑(朝向中心广场开门) ---- */
+        building(-32, -30, 26, 24, 4.2, M_WALL, true, { e: true, s: true });   // A 西北
+        building(32, -30, 26, 24, 4.2, M_WALL2, true, { w: true, s: true });  // B 东北
+        building(-32, 30, 26, 24, 4.2, M_WALL2, true, { e: true, n: true });  // C 西南
+        building(32, 30, 26, 24, 4.2, M_WALL, true, { w: true, n: true });    // D 东南
+
+        /* ---- 3. 四角哨塔(地标+掩体) ---- */
+        addBox(-51, 3.5, -51, 3.5, 7, 3.5, M_TOWER);
+        addBox(51, 3.5, -51, 3.5, 7, 3.5, M_TOWER);
+        addBox(-51, 3.5, 51, 3.5, 7, 3.5, M_TOWER);
+        addBox(51, 3.5, 51, 3.5, 7, 3.5, M_TOWER);
+
+        /* ---- 4. 中央广场掩体(出生点(0,0)保持开阔) ---- */
+        for (const [cx, cz] of [[5, 5], [-5, 5], [5, -5], [-5, -5]]) {
+            addBox(cx, 1.2, cz, 2.4, 2.4, 2.4, M_CRATE);          // 木箱四角
+        }
+        for (const [cx, cz] of [[13, 13], [-13, 13], [13, -13], [-13, -13]]) {
+            addBox(cx, 1.75, cz, 1.8, 3.5, 1.8, M_CRATE2);        // 立柱外围
+        }
+
+        /* ---- 5. 建筑间过道掩体墙(中央留缺口通行) ---- */
+        const ALLEY_H = 3.0, ALLEY_T = 0.7, ALLEY_GAP = 5.0;
+        wallHGap(-19, 19, -30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);   // A-B 之间(东西向)
+        wallHGap(-19, 19, 30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);    // C-D 之间
+        wallVGap(-19, 19, -30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);   // A-C 之间(南北向)
+        wallVGap(-19, 19, 30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);    // B-D 之间
+
+        /* ---- 6. 散落集装箱/木箱掩体 ---- */
+        addBox(-24, 1.25, -12, 5, 2.5, 2.5, M_CRATE2);   // A 东南侧
+        addBox(24, 1.25, -12, 5, 2.5, 2.5, M_CRATE2);    // B 西南侧
+        addBox(-24, 1.25, 12, 5, 2.5, 2.5, M_CRATE2);    // C 东北侧
+        addBox(24, 1.25, 12, 5, 2.5, 2.5, M_CRATE2);     // D 西北侧
+        addBox(-40, 0.9, -8, 2.4, 1.8, 2.4, M_CRATE);    // 西侧过道
+        addBox(40, 0.9, -8, 2.4, 1.8, 2.4, M_CRATE);     // 东侧过道
+        addBox(-40, 0.9, 8, 2.4, 1.8, 2.4, M_CRATE);
+        addBox(40, 0.9, 8, 2.4, 1.8, 2.4, M_CRATE);
 
         const gridHelper = new THREE.GridHelper(400, 80, 0x1a3a5c, 0x0f243f);
         gridHelper.position.y = GROUND_Y;
@@ -1683,6 +1815,8 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             }, { passive: false });
         }
 
+        // AABB 碰撞解析（最小穿透轴）：每次把重叠按 X/Z 中穿透较浅的一轴完全移出，
+        // 保证人物绝不进入墙体/建筑，也不会从墙角滑穿到墙外；贴墙时可平滑滑动。
         function collide(pos) {
             for (const o of obstacles) {
                 const dx = pos.x - o.mesh.position.x, dy = pos.y - o.mesh.position.y, dz = pos.z - o.mesh.position.z;
@@ -1754,12 +1888,14 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 
             const ray = new THREE.Raycaster();
             ray.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const hit = ray.intersectObjects(obstacles.map(o => o.mesh), false);
+            const hit = ray.intersectObjects(obstacleMeshes, false);
+            const muzzlePos = muzzle.getWorldPosition(new THREE.Vector3());
             if (hit.length) {
-                createTracer(muzzle.getWorldPosition(new THREE.Vector3()), hit[0].point);
+                createTracer(muzzlePos, hit[0].point);
+                createWallImpact(hit[0].point.x, hit[0].point.y, hit[0].point.z);
             } else {
                 const end = dir.clone().multiplyScalar(120).add(camera.getWorldPosition(new THREE.Vector3()));
-                createTracer(muzzle.getWorldPosition(new THREE.Vector3()), end);
+                createTracer(muzzlePos, end);
             }
         }
 
@@ -1769,6 +1905,34 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             scene.add(l);
             let t = 0;
             (function f() { t += 0.05; l.material.opacity = 0.8 - t; if (t > 0.8) { scene.remove(l); g.dispose(); l.material.dispose(); return; } requestAnimationFrame(f); })();
+        }
+
+        // 子弹打在墙上的火花/碎屑
+        function createWallImpact(x, y, z) {
+            const grp = new THREE.Group();
+            for (let i = 0; i < 7; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.06, 5, 5),
+                    new THREE.MeshBasicMaterial({ color: 0xcfd8e4, transparent: true }));
+                p.position.set(x, y, z);
+                const v = new THREE.Vector3((Math.random() - 0.5), Math.random() * 0.7, (Math.random() - 0.5)).multiplyScalar(3.2);
+                p.userData.v = v; grp.add(p);
+            }
+            scene.add(grp);
+            const start = performance.now();
+            (function anim() {
+                const t = (performance.now() - start) / 1000;
+                if (t > 0.4) {
+                    scene.remove(grp);
+                    grp.children.forEach(p => { p.geometry.dispose(); p.material.dispose(); });
+                    return;
+                }
+                grp.children.forEach(p => {
+                    p.position.addScaledVector(p.userData.v, 0.016);
+                    p.userData.v.y -= 4 * 0.016;
+                    p.material.opacity = 1 - t / 0.4;
+                });
+                requestAnimationFrame(anim);
+            })();
         }
 
         renderer.domElement.addEventListener("mousedown", e => {
@@ -1828,6 +1992,48 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         const _f = new THREE.Vector3();
         const _r = new THREE.Vector3();
         const _dir = new THREE.Vector3();
+        const _occ = new THREE.Vector3();
+        const occlusionRay = new THREE.Raycaster();
+
+        /* ------- 小地图：建筑布局 + 玩家位置 ------- */
+        const minimapEl = document.getElementById("minimap");
+        const mmCtx = minimapEl.getContext("2d");
+        const MM = minimapEl.width, MM_HALF = MM / 2;
+        const MAP_EXTENT = 60;                 // 地图半宽
+        const MM_SCALE = MM_HALF / MAP_EXTENT;
+        function drawMinimap() {
+            mmCtx.clearRect(0, 0, MM, MM);
+            // 墙体
+            mmCtx.fillStyle = "rgba(120,150,190,.6)";
+            for (const o of obstacles) {
+                const px = MM_HALF + (o.mesh.position.x - o.half.x) * MM_SCALE;
+                const py = MM_HALF + (o.mesh.position.z - o.half.z) * MM_SCALE;
+                mmCtx.fillRect(px, py, o.half.x * 2 * MM_SCALE, o.half.z * 2 * MM_SCALE);
+            }
+            // 本机（绿色 + 朝向）
+            if (selfId) {
+                const sx = MM_HALF + localPos.x * MM_SCALE;
+                const sz = MM_HALF + localPos.z * MM_SCALE;
+                mmCtx.fillStyle = "#6fe9b0";
+                mmCtx.beginPath(); mmCtx.arc(sx, sz, 4, 0, Math.PI * 2); mmCtx.fill();
+                mmCtx.strokeStyle = "#6fe9b0"; mmCtx.lineWidth = 2;
+                mmCtx.beginPath(); mmCtx.moveTo(sx, sz);
+                mmCtx.lineTo(sx + Math.sin(yaw) * 11, sz + Math.cos(yaw) * 11); mmCtx.stroke();
+            }
+            // 其他玩家（蓝色）
+            players.forEach((p, id) => {
+                if (id === selfId) return;
+                const px = MM_HALF + p.targetPos.x * MM_SCALE;
+                const pz = MM_HALF + p.targetPos.z * MM_SCALE;
+                mmCtx.fillStyle = "#3d9bff";
+                mmCtx.beginPath(); mmCtx.arc(px, pz, 3.5, 0, Math.PI * 2); mmCtx.fill();
+            });
+            // 边界
+            mmCtx.strokeStyle = "rgba(111,233,176,.4)";
+            mmCtx.lineWidth = 2;
+            mmCtx.strokeRect(MM_HALF - MAP_EXTENT * MM_SCALE, MM_HALF - MAP_EXTENT * MM_SCALE,
+                MAP_EXTENT * 2 * MM_SCALE, MAP_EXTENT * 2 * MM_SCALE);
+        }
 
         function animate() {
             requestAnimationFrame(animate);
@@ -1838,11 +2044,13 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                 _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
                 const mv = computeMove(_f, _r);
                 const s = mv.mag * MOVE_SPEED * dt;
-                const mx = mv.dx * s, mz = mv.dz * s;
 
-                localPos.x = localPos.x + mx + (serverPos.x - localPos.x) * Math.min(1, dt * 8);
-                localPos.z = localPos.z + mz + (serverPos.z - localPos.z) * Math.min(1, dt * 8);
+                // 移动 + 最小穿透碰撞解析：贴墙滑动、不可穿墙
+                localPos.x += mv.dx * s;
+                localPos.z += mv.dz * s;
+                collide(localPos);
 
+                // 重力
                 velY.v -= GRAVITY * dt;
                 localPos.y += velY.v * dt;
                 if (localPos.y <= GROUND_Y) {
@@ -1851,6 +2059,10 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                     onGround = true;
                 }
 
+                // 服务器权威校正：限制单次幅度 + 碰撞感知，避免被拉进墙体/建筑
+                const corr = err => Math.max(-2, Math.min(2, err)) * Math.min(1, dt * 4);
+                localPos.x += corr(serverPos.x - localPos.x);
+                localPos.z += corr(serverPos.z - localPos.z);
                 collide(localPos);
 
                 camera.position.set(localPos.x, localPos.y + EYE_HEIGHT, localPos.z);
@@ -1876,6 +2088,17 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                     while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
                     p.group.rotation.y += rotDiff * dt * 10;
                 }
+                // 墙体遮挡：视线被建筑挡住时隐藏敌人，防止“隔墙透视”
+                _occ.subVectors(p.group.position, camera.position);
+                _occ.y += 1.8;
+                const occDist = _occ.length();
+                if (occDist > 0.5) {
+                    _occ.normalize();
+                    occlusionRay.set(camera.position, _occ);
+                    occlusionRay.far = occDist - 0.2;
+                    const wallHits = occlusionRay.intersectObjects(obstacleMeshes, false);
+                    p.group.visible = wallHits.length === 0;
+                }
             });
 
             const now = performance.now();
@@ -1896,6 +2119,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             }
 
             updateCoordPanel(dt);
+            drawMinimap();
             renderer.render(scene, camera);
         }
         animate();
