@@ -4,8 +4,10 @@
 <head>
     <meta charset="utf-8" />
     <title>AVANT — MAPSVR·3D 服务器权威客户端</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -764,6 +766,150 @@
                 padding: 6px 12px;
             }
         }
+
+        /* ---------- 移动端触控 (仅触屏设备显示; PC 布局不受影响) ---------- */
+        body {
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #touchctl {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 75;
+            display: none;
+        }
+
+        body.touch #touchctl {
+            display: block;
+        }
+
+        #joyBase {
+            position: absolute;
+            width: 128px;
+            height: 128px;
+            border-radius: 50%;
+            border: 2px solid rgba(111, 233, 176, .3);
+            background: radial-gradient(circle, rgba(111, 233, 176, .1), rgba(111, 233, 176, .02));
+            box-shadow: 0 0 26px rgba(111, 233, 176, .14);
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        #joyBase.on {
+            display: block;
+        }
+
+        #joyKnob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, rgba(190, 255, 225, .95), rgba(111, 233, 176, .55));
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .4);
+            transform: translate(-50%, -50%);
+        }
+
+        #btnFire,
+        #btnJump,
+        #btnCrouch {
+            position: absolute;
+            pointer-events: auto;
+            touch-action: none;
+            border-radius: 50%;
+            border: 1px solid rgba(143, 166, 200, .4);
+            background: rgba(13, 20, 36, .72);
+            color: var(--steel);
+            font: 700 11px var(--disp);
+            letter-spacing: .16em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .12s, border-color .12s, color .12s, transform .1s;
+        }
+
+        #btnFire {
+            right: calc(24px + env(safe-area-inset-right, 0px));
+            bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+            width: 92px;
+            height: 92px;
+            border-color: rgba(255, 93, 93, .55);
+            color: #ffd9d9;
+            background: radial-gradient(circle, rgba(230, 57, 70, .3), rgba(13, 20, 36, .72));
+        }
+
+        #btnFire:active {
+            transform: scale(.94);
+            background: radial-gradient(circle, rgba(230, 57, 70, .55), rgba(13, 20, 36, .82));
+        }
+
+        #btnJump {
+            right: calc(136px + env(safe-area-inset-right, 0px));
+            bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+            width: 64px;
+            height: 64px;
+            border-color: rgba(111, 233, 176, .5);
+            color: var(--signal);
+        }
+
+        #btnCrouch {
+            right: calc(34px + env(safe-area-inset-right, 0px));
+            bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+            width: 58px;
+            height: 58px;
+            border-color: rgba(255, 200, 87, .5);
+            color: var(--amber);
+            font-size: 10px;
+        }
+
+        #btnCrouch.active {
+            background: rgba(255, 200, 87, .3);
+            border-color: var(--amber);
+            color: #fff;
+        }
+
+        /* 触屏设备 HUD 重排 (不影响 PC) */
+        body.touch #authority {
+            display: none;
+        }
+
+        body.touch #hpwrap {
+            top: calc(50px + env(safe-area-inset-top, 0px));
+            left: 12px;
+            bottom: auto;
+            width: 160px;
+        }
+
+        body.touch #stats {
+            top: calc(50px + env(safe-area-inset-top, 0px));
+            right: 12px;
+            bottom: auto;
+            gap: 10px;
+            padding: 6px 10px;
+        }
+
+        body.touch #killfeed {
+            top: calc(96px + env(safe-area-inset-top, 0px));
+            right: 12px;
+            width: 210px;
+        }
+
+        body.touch #hint {
+            bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+            font-size: 9px;
+            padding: 6px 12px;
+        }
+
+        body.touch #telem .wordmark-sub,
+        body.touch #telem .seg-map,
+        body.touch #telem .seg-seq,
+        body.touch #telem .seg-rtt,
+        body.touch #telem .seg-online {
+            display: none;
+        }
     </style>
 </head>
 
@@ -845,6 +991,14 @@
 
     <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · ESC 解锁</div>
     <div id="dmgflash"></div>
+
+    <!-- 移动端触控层 (仅触屏设备显示) -->
+    <div id="touchctl">
+        <div id="joyBase"><div id="joyKnob"></div></div>
+        <button id="btnFire">FIRE</button>
+        <button id="btnJump">JUMP</button>
+        <button id="btnCrouch">CROUCH</button>
+    </div>
 
     <!-- 进入遮罩 -->
     <div id="blocker" class="hidden">
@@ -964,6 +1118,34 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         const consoleTabEl = document.getElementById("consoleTab");
         const hintEl = document.getElementById("hint");
         const crosshairEl = document.getElementById("crosshair");
+
+        /* ------- 移动端触控 (仅触屏设备; PC 走原有鼠标/键盘路径) ------- */
+        const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (isTouch) document.body.classList.add("touch");
+
+        const joyBaseEl = document.getElementById("joyBase");
+        const joyKnobEl = document.getElementById("joyKnob");
+        const btnFireEl = document.getElementById("btnFire");
+        const btnJumpEl = document.getElementById("btnJump");
+        const btnCrouchEl = document.getElementById("btnCrouch");
+
+        const joyOrigin = { x: 0, y: 0 };
+        const stick = { x: 0, y: 0 };
+        const crouch = { on: false };
+        const LOOK_TOUCH_SENS = 0.0045;
+        let firing = false;
+        let joyTouchId = null, lookTouchId = null, lookLast = null, lastTouchTime = 0;
+
+        function inUi(el) {
+            return !!(el && el.closest && el.closest(
+                '#console, #telem, #stats, #killfeed, #hint, #hpwrap, #authority, #btnFire, #btnJump, #btnCrouch, #blocker'));
+        }
+
+        if (isTouch) {
+            hintEl.textContent = "左摇杆 移动 · 右侧拖拽 瞄准 · FIRE 射击 · JUMP 跳跃";
+            const bp = document.querySelector("#blocker p");
+            if (bp) bp.textContent = "左半屏摇杆 移动 / 右侧拖拽 瞄准 / 开火 射击";
+        }
 
         function setConn(state) {
             connDotEl.className = "dot " + state;
@@ -1177,7 +1359,8 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.1, 2000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(innerWidth, innerHeight);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
+        renderer.domElement.style.touchAction = "none";
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
@@ -1381,8 +1564,19 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         const EYE_HEIGHT = 2.0;
         const PLAYER_RADIUS = 0.6;
         const blocker = document.getElementById("blocker");
-        blocker.addEventListener("click", () => { renderer.domElement.requestPointerLock(); });
+        function enterGame() {
+            if (isTouch) {
+                blocker.classList.add("hidden");
+                hintEl.classList.add("hide");
+                lastTouchTime = Date.now();
+            } else {
+                renderer.domElement.requestPointerLock();
+            }
+        }
+        blocker.addEventListener("click", enterGame);
+        blocker.addEventListener("touchstart", e => { e.preventDefault(); enterGame(); }, { passive: false });
         document.addEventListener("pointerlockchange", () => {
+            if (isTouch) return;
             if (document.pointerLockElement === renderer.domElement) {
                 blocker.classList.add("hidden");
                 hintEl.classList.add("hide");
@@ -1416,6 +1610,79 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 
         function tryJump() { if (onGround) { velY.v = JUMP_SPEED; onGround = false; } }
 
+        /* ------- 触屏: 左摇杆 / 右拖拽瞄准 / 开火·跳跃·下蹲 ------- */
+        if (isTouch) {
+            document.addEventListener("touchstart", e => {
+                lastTouchTime = Date.now();
+                if (!blocker.classList.contains("hidden")) return;
+                for (const t of e.changedTouches) {
+                    if (inUi(t.target)) continue;
+                    if (joyTouchId === null && t.clientX < innerWidth * 0.5) {
+                        joyTouchId = t.identifier;
+                        joyOrigin.x = t.clientX; joyOrigin.y = t.clientY;
+                        joyBaseEl.style.left = t.clientX + "px";
+                        joyBaseEl.style.top = t.clientY + "px";
+                        joyBaseEl.classList.add("on");
+                        stick.x = 0; stick.y = 0;
+                        e.preventDefault();
+                    } else if (lookTouchId === null && t.clientX >= innerWidth * 0.5) {
+                        lookTouchId = t.identifier;
+                        lookLast = { x: t.clientX, y: t.clientY };
+                        e.preventDefault();
+                    }
+                }
+            }, { passive: false });
+
+            document.addEventListener("touchmove", e => {
+                let handled = false;
+                for (const t of e.changedTouches) {
+                    if (t.identifier === joyTouchId) {
+                        const dx = t.clientX - joyOrigin.x, dy = t.clientY - joyOrigin.y;
+                        const R = 56, d = Math.hypot(dx, dy);
+                        const k = Math.min(1, d / R), ang = Math.atan2(dy, dx);
+                        const ox = Math.cos(ang) * Math.min(d, R);
+                        const oy = Math.sin(ang) * Math.min(d, R);
+                        joyKnobEl.style.transform = "translate(calc(-50% + " + ox + "px), calc(-50% + " + oy + "px))";
+                        stick.x = Math.cos(ang) * k;
+                        stick.y = Math.sin(ang) * k;
+                        handled = true;
+                    } else if (t.identifier === lookTouchId) {
+                        const dx = t.clientX - lookLast.x, dy = t.clientY - lookLast.y;
+                        yaw -= dx * LOOK_TOUCH_SENS;
+                        pitch -= dy * LOOK_TOUCH_SENS;
+                        pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch));
+                        lookLast = { x: t.clientX, y: t.clientY };
+                        handled = true;
+                    }
+                }
+                if (handled) e.preventDefault();
+            }, { passive: false });
+
+            const endTouch = e => {
+                for (const t of e.changedTouches) {
+                    if (t.identifier === joyTouchId) {
+                        joyTouchId = null; stick.x = 0; stick.y = 0;
+                        joyBaseEl.classList.remove("on");
+                    }
+                    if (t.identifier === lookTouchId) lookTouchId = null;
+                }
+            };
+            document.addEventListener("touchend", endTouch);
+            document.addEventListener("touchcancel", endTouch);
+
+            btnFireEl.addEventListener("touchstart", e => { e.preventDefault(); e.stopPropagation(); firing = true; shoot(); }, { passive: false });
+            btnFireEl.addEventListener("touchend", e => { e.preventDefault(); e.stopPropagation(); firing = false; }, { passive: false });
+            btnFireEl.addEventListener("touchcancel", () => { firing = false; });
+
+            btnJumpEl.addEventListener("touchstart", e => { e.preventDefault(); e.stopPropagation(); tryJump(); }, { passive: false });
+
+            btnCrouchEl.addEventListener("touchstart", e => {
+                e.preventDefault(); e.stopPropagation();
+                crouch.on = !crouch.on;
+                btnCrouchEl.classList.toggle("active", crouch.on);
+            }, { passive: false });
+        }
+
         function collide(pos) {
             for (const o of obstacles) {
                 const dx = pos.x - o.mesh.position.x, dy = pos.y - o.mesh.position.y, dz = pos.z - o.mesh.position.z;
@@ -1428,22 +1695,31 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             }
         }
 
+        function computeMove(_f, _r) {
+            let mx = 0, mz = 0;
+            if (key.w) { mx += _f.x; mz += _f.z; }
+            if (key.s) { mx -= _f.x; mz -= _f.z; }
+            if (key.a) { mx -= _r.x; mz -= _r.z; }
+            if (key.d) { mx += _r.x; mz += _r.z; }
+            mx += stick.x * _r.x + stick.y * _f.x;
+            mz += stick.x * _r.z + stick.y * _f.z;
+            const len = Math.hypot(mx, mz);
+            let dx = 0, dz = 0, mag = 0;
+            if (len > 0) { dx = mx / len; dz = mz / len; mag = Math.min(len, 1); }
+            return { dx, dz, mag };
+        }
+
         setInterval(() => {
             if (!selfId) return;
             const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
             const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-            let mx = 0, mz = 0;
-            if (key.w) { mx += f.x; mz += f.z; }
-            if (key.s) { mx -= f.x; mz -= f.z; }
-            if (key.a) { mx -= r.x; mz -= r.z; }
-            if (key.d) { mx += r.x; mz += r.z; }
+            const mv = computeMove(f, r);
             let my = 0;
             if (!onGround && velY.v > 0) my = INPUT_SEND_SPEED;
-            else if (key.shift) my = -INPUT_SEND_SPEED;
-            const len = Math.hypot(mx, mz);
-            if (len > 0) { mx = mx / len * INPUT_SEND_SPEED; mz = mz / len * INPUT_SEND_SPEED; }
+            else if (key.shift || crouch.on) my = -INPUT_SEND_SPEED;
+            const s = mv.mag * INPUT_SEND_SPEED;
             lastSeq++;
-            sendInner(T_Input, { dirX: Math.round(mx), dirY: Math.round(my), dirZ: Math.round(mz), seq: lastSeq, clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
+            sendInner(T_Input, { dirX: Math.round(mv.dx * s), dirY: Math.round(my), dirZ: Math.round(mv.dz * s), seq: lastSeq, clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
         }, 80);
 
         let lastShootTime = 0;
@@ -1496,6 +1772,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         }
 
         renderer.domElement.addEventListener("mousedown", e => {
+            if (isTouch && Date.now() - lastTouchTime < 700) return;
             if (document.pointerLockElement === renderer.domElement) shoot();
         });
 
@@ -1559,13 +1836,9 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             if (selfId) {
                 _f.set(Math.sin(yaw), 0, Math.cos(yaw));
                 _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
-                let mx = 0, mz = 0;
-                if (key.w) { mx += _f.x; mz += _f.z; }
-                if (key.s) { mx -= _f.x; mz -= _f.z; }
-                if (key.a) { mx -= _r.x; mz -= _r.z; }
-                if (key.d) { mx += _r.x; mz += _r.z; }
-                const len = Math.hypot(mx, mz);
-                if (len > 0) { mx = mx / len * MOVE_SPEED * dt; mz = mz / len * MOVE_SPEED * dt; }
+                const mv = computeMove(_f, _r);
+                const s = mv.mag * MOVE_SPEED * dt;
+                const mx = mv.dx * s, mz = mv.dz * s;
 
                 localPos.x = localPos.x + mx + (serverPos.x - localPos.x) * Math.min(1, dt * 8);
                 localPos.z = localPos.z + mz + (serverPos.z - localPos.z) * Math.min(1, dt * 8);
@@ -1588,6 +1861,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 
             viewModel.position.z += (0 - viewModel.position.z) * Math.min(1, dt * 12);
             if (flashTime > 0) { flashTime -= dt; if (flashTime <= 0) { flash.material.opacity = 0; } }
+            if (firing && selfId && Date.now() - lastShootTime >= SHOOT_COOLDOWN) shoot();
 
             players.forEach((p, id) => {
                 if (id === selfId) return;
@@ -1626,11 +1900,13 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         }
         animate();
 
-        addEventListener("resize", () => {
+        function fitScreen() {
             camera.aspect = innerWidth / innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(innerWidth, innerHeight);
-        });
+        }
+        addEventListener("resize", fitScreen);
+        if (window.visualViewport) window.visualViewport.addEventListener("resize", fitScreen);
 
         log("✓ AVANT FPS 已初始化 (地面 Y=" + GROUND_Y + ")");
     </script>
