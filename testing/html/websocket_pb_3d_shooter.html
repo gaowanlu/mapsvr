@@ -14,7 +14,7 @@
     <style>
         /* ============================================================
            AVANT MAPSVR·3D — 服务器权威客户端 (重新设计)
-           主题: 玻璃座舱 (Glass Cockpit) + 全屏世界
+           主题: 玻璃座舱 + 全屏世界
            语义色: 薄荷绿=已连接/本机/权威 · 钢蓝=标签 · 琥珀=漂移告警
                    红=伤害/错误 · 蓝=其他玩家
            ============================================================ */
@@ -954,7 +954,7 @@
     <!-- 连接控制台 -->
     <aside id="console" aria-label="连接控制台">
         <label class="field"><span>WebSocket 地址</span>
-            <input id="wsUrl" value="ws://127.0.0.1:20026" spellcheck="false" autocomplete="off" />
+            <input id="wsUrl" value="wss://mfavant.duckdns.org:20026" spellcheck="false" autocomplete="off" />
         </label>
         <div class="field-row">
             <label class="field"><span>userId</span><input id="userId" value="1" /></label>
@@ -1298,6 +1298,10 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                         }
                         const lp = loc(p);
                         m.targetPos.set(lp.x, lp.y, lp.z);
+                        // 敌人穿墙修复：服务器移动积分不带碰撞检测，敌人坐标可能被推进墙内，
+                        // 这里对本端渲染的敌人目标位置做与自身一致的碰撞钳制，避免敌人穿墙显示，
+                        // 使敌人位置与对方自己屏幕上看到的位置基本一致。
+                        if (pId !== selfId) collide(m.targetPos);
                         m.updateTime = performance.now();
                         if (pId === selfId) serverPos.set(lp.x, lp.y, lp.z);
                     });
@@ -1851,9 +1855,38 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             let my = 0;
             if (!onGround && velY.v > 0) my = INPUT_SEND_SPEED;
             else if (key.shift || crouch.on) my = -INPUT_SEND_SPEED;
-            const s = mv.mag * INPUT_SEND_SPEED;
+
+            // —— 碰墙穿墙修复（根因修复）——
+            // 服务器无碰撞检测，把 归一化后按 maxSpeed 持续推进。
+            // 旧方案缺陷：用"碰撞后剩余位移"当方向发送，服务器归一化后全速撞墙——
+            //   距墙 0.6u → actX=0.6 → round=1 → 服务器全速穿过。
+            // 新方案：从本机当前位置向 X / Z 各轴独立做小步探测，
+            //   被 collide 推回 = 该轴有墙 → 该轴方向置零。
+            //   只把可通行方向发给服务器，贴墙时自动只剩切向分量 = 滑动。
+            const PROBE = 1.0; // ≥ 服务器单帧最大位移，确保服务器不会冲过探测范围
+            let dirX = mv.dx * mv.mag;
+            let dirZ = mv.dz * mv.mag;
+
+            // X 轴探测：朝该方向走 PROBE，被推回说明有墙
+            if (Math.abs(dirX) > 0.001) {
+                const px = new THREE.Vector3(localPos.x + Math.sign(dirX) * PROBE, localPos.y, localPos.z);
+                const beforeX = px.x;
+                collide(px);
+                if (Math.abs(px.x - beforeX) > 0.001) dirX = 0;
+            }
+            // Z 轴探测
+            if (Math.abs(dirZ) > 0.001) {
+                const pz = new THREE.Vector3(localPos.x, localPos.y, localPos.z + Math.sign(dirZ) * PROBE);
+                const beforeZ = pz.z;
+                collide(pz);
+                if (Math.abs(pz.z - beforeZ) > 0.001) dirZ = 0;
+            }
+
+            const sendX = Math.round(dirX * INPUT_SEND_SPEED);
+            const sendZ = Math.round(dirZ * INPUT_SEND_SPEED);
+
             lastSeq++;
-            sendInner(T_Input, { dirX: Math.round(mv.dx * s), dirY: Math.round(my), dirZ: Math.round(mv.dz * s), seq: lastSeq, clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
+            sendInner(T_Input, { dirX: sendX, dirY: Math.round(my), dirZ: sendZ, seq: lastSeq, clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_INPUT);
         }, 80);
 
         let lastShootTime = 0;
@@ -2079,6 +2112,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                 if (id === selfId) return;
                 _dir.subVectors(p.targetPos, p.group.position);
                 p.group.position.lerp(p.targetPos, dt * 12);
+                collide(p.group.position); // 补间逼近过程中同样做碰撞钳制，杜绝敌人穿墙闪现
                 if (_dir.lengthSq() > 0.001) {
                     _dir.y = 0;
                     _dir.normalize();
