@@ -68,6 +68,11 @@ Database operations are decoupled into a separate Go service (`dbsvrgo`) communi
 
 ## 3. Lua API & Protocol Mapping
 
+### Lua Language Version
+
+* **All Lua scripts must be written for Lua 5.1.** The Avant framework embeds LuaJIT 2.1, which implements the Lua 5.1 API (with LuaJIT extensions).
+* Do **not** use Lua 5.2+/5.3+ features in `lua/` code: integer division `//`, bitwise operator syntax (`&`, `|`, `~`, `<<`, `>>`), `goto` / `<labels>`, `string.pack`/`string.unpack`, `table.pack`/`table.unpack`, `math.type`, etc. In 5.1 the table helper is the global `unpack`, not `table.unpack`. For bitwise operations use LuaJIT's `bit` library (or plain arithmetic).
+
 ### Global `avant` C++ Bridge API
 
 The `avant` module is injected into the Lua environment with the following interfaces:
@@ -125,6 +130,11 @@ The `Async` module provides a managed coroutine scheduler (`CoroutineMgr`) to ha
 ---
 
 ## 5. Development Workflow
+
+### ⚠️ Lua Verification Rule (No Standalone Interpreter)
+
+* **Never invoke `lua` or `luajit` directly to run or verify Lua code** — no standalone Lua interpreter is installed on the development machine.
+* Write Lua only for the framework (under `lua/`) and verify it **inside the framework**: build with `./build.sh`, run with `./avant --mapsvr`, and use hot reload (`kill -SIGUSR1 <PID>`) for Lua-only changes. Check `server_output.log` and the latest `log/YYYY-MM-DD_HH.log` for runtime errors.
 
 ### Build & Run MapSvr
 
