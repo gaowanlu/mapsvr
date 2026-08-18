@@ -33,6 +33,7 @@
 ---@field friction       number            每帧速度衰减系数
 ---@field bodyRadius     number            角色碰撞半径
 ---@field map3DOctree    Map3DOctree | nil 所在地图八叉树节点
+---@field lastChatMS     integer | nil     上一次发送聊天消息的时间(ms), 用于限频
 
 ---@class Map3DBulletType
 ---@field bulletId        string

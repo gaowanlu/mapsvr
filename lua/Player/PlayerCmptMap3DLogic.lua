@@ -168,4 +168,33 @@ function PlayerCmptMap3D:MapShootReq(message)
     )
 end
 
+-- 聊天内容最大长度
+local CHAT_MAX_LEN = 120
+
+---@param message ProtoLua_ProtoCSReqMap3DChat
+function PlayerCmptMap3D:MapChatReq(message)
+    -- 如果目前没有加入任何地图则直接拒绝处理
+    if false == self:HasInMap() then
+        return
+    end
+
+    ---@type Map3D
+    local currMap = Map3DMgr.GetMap(self.nowMapId)
+    if currMap == nil then
+        return
+    end
+
+    local text = message.message
+    if text == nil or text == "" or text:match("^%s+$") ~= nil then
+        return
+    end
+
+    -- 截断超长消息
+    if #text > CHAT_MAX_LEN then
+        text = text:sub(1, CHAT_MAX_LEN)
+    end
+
+    currMap:SendChat(self:GetPlayer():GetUserId(), text)
+end
+
 return PlayerCmptMap3D

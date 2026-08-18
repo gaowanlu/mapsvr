@@ -300,3 +300,18 @@ message ProtoCSMap3DNotifyBulletWallHit
   int32 z=5;
 }
 
+
+// Map3D房间文字聊天请求
+// PROTO_CMD_CS_REQ_MAP3D_CHAT
+message ProtoCSReqMap3DChat
+{
+  string message=1;  // 聊天内容(发送者由会话playerId确定, 不信任客户端)
+}
+
+// Map3D房间文字聊天广播
+// PROTO_CMD_CS_MAP3D_NOTIFY_CHAT
+message ProtoCSMap3DNotifyChat
+{
+  string senderId=1;
+  string message=2;
+}

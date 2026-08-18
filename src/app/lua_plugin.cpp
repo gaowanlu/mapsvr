@@ -1827,4 +1827,6 @@ void lua_plugin::init_message_factory()
     REGISTER_MSG(ProtoCmd::PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT, ProtoCSMap3DNotifyPlayerHurt);
     REGISTER_MSG(ProtoCmd::PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA, ProtoCSMap3DNotifyMapData);
     REGISTER_MSG(ProtoCmd::PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT, ProtoCSMap3DNotifyBulletWallHit);
+    REGISTER_MSG(ProtoCmd::PROTO_CMD_CS_REQ_MAP3D_CHAT, ProtoCSReqMap3DChat);
+    REGISTER_MSG(ProtoCmd::PROTO_CMD_CS_MAP3D_NOTIFY_CHAT, ProtoCSMap3DNotifyChat);
 }

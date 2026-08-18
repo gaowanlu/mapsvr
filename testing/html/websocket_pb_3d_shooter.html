@@ -641,6 +641,98 @@
             }
         }
 
+        /* ---------- 房间文字聊天 (T键 打开/关闭) ---------- */
+        #chat {
+            position: fixed;
+            left: 50%;
+            bottom: 52px;
+            transform: translateX(-50%);
+            width: min(540px, calc(100vw - 24px));
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 58;
+            pointer-events: none;
+        }
+
+        #chatLog {
+            max-height: 168px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: 2px 2px 2px 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(143, 166, 200, .35) transparent;
+        }
+
+        .chat-line {
+            font: 400 12px/1.55 var(--sans);
+            color: #c6d6f0;
+            background: rgba(5, 8, 14, .62);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 3px 10px;
+            width: fit-content;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-line .cid {
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: .06em;
+            margin-right: 7px;
+        }
+
+        .chat-line.self {
+            border-color: rgba(111, 233, 176, .38);
+        }
+
+        .chat-line.self .cid {
+            color: var(--signal);
+        }
+
+        .chat-line.other .cid {
+            color: var(--amber);
+        }
+
+        .chat-line.sys {
+            color: #51627d;
+            font-style: italic;
+            border-style: dashed;
+        }
+
+        #chatRow {
+            display: flex;
+            gap: 6px;
+            pointer-events: auto;
+        }
+
+        #chatInput {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 12px;
+        }
+
+        #chatSend {
+            width: 64px;
+            padding: 0;
+            border: 1px solid rgba(111, 233, 176, .5);
+            border-radius: 6px;
+            background: linear-gradient(180deg, #0f3d2a, #0a2a1d);
+            color: var(--signal);
+            font: 600 11px var(--disp);
+            letter-spacing: .14em;
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+        }
+
+        #chatSend:hover {
+            border-color: var(--signal);
+            background: linear-gradient(180deg, #145036, #0e3425);
+        }
+
         /* ---------- 受击泛红 ---------- */
         #dmgflash {
             position: fixed;
@@ -897,6 +989,11 @@
             display: none;
         }
 
+        /* 触屏: 聊天上移, 避开右下触控按钮区 (最高约194px) */
+        body.touch #chat {
+            bottom: calc(204px + env(safe-area-inset-bottom, 0px));
+        }
+
         body.touch #hpwrap {
             top: calc(50px + env(safe-area-inset-top, 0px));
             left: 12px;
@@ -1011,7 +1108,16 @@
     </div>
 
     <canvas id="minimap" width="316" height="316"></canvas>
-    <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · ESC 解锁</div>
+    <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · T 聊天 · ESC 解锁</div>
+
+    <!-- 房间文字聊天 (进入地图后显示) -->
+    <div id="chat" class="hidden">
+        <div id="chatLog"></div>
+        <div id="chatRow">
+            <input id="chatInput" maxlength="120" placeholder="输入消息，Enter 发送" autocomplete="off" spellcheck="false" />
+            <button id="chatSend">发送</button>
+        </div>
+    </div>
     <div id="dmgflash"></div>
 
     <!-- 移动端触控层 (仅触屏设备显示) -->
@@ -1027,7 +1133,7 @@
         <div class="card">
             <span class="wordmark">AVANT</span>
             <h1>点击进入第一人称</h1>
-            <p>WASD 移动 / 空格 跳跃 / 鼠标 瞄准 / 点击 射击</p>
+            <p>WASD 移动 / 空格 跳跃 / 鼠标 瞄准 / 点击 射击 / T 聊天</p>
             <p class="meta">按 ESC 退出鼠标锁定 · 左下角实时监控服务器权威坐标</p>
             <span class="enter-hint">点击 进入 ▶</span>
         </div>
@@ -1063,6 +1169,7 @@ enum ProtoCmd{
     PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023; PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
     PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
     PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA = 2026; PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT = 2027;
+    PROTO_CMD_CS_REQ_MAP3D_CHAT = 2028; PROTO_CMD_CS_MAP3D_NOTIFY_CHAT = 2029;
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000; PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
     PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002; PROTO_CMD_CS_REQ_CREATE_USER = 3003;
     PROTO_CMD_CS_RES_CREATE_USER = 3004; PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
@@ -1089,6 +1196,8 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 message ProtoMap3DBoxData{ int32 x=1; int32 y=2; int32 z=3; int32 w=4; int32 h=5; int32 d=6; uint32 color=7; bool collide=8; }
 message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; }
 message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; }
+message ProtoCSReqMap3DChat{ string message=1; }
+message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
 `;
 
         const root = protobuf.parse(protoText).root;
@@ -1111,6 +1220,8 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
         const T_EnterR = root.lookupType("avant.ProtoCSMap3DEnterRes");
         const T_MapData = root.lookupType("avant.ProtoCSMap3DNotifyMapData");
         const T_WallHit = root.lookupType("avant.ProtoCSMap3DNotifyBulletWallHit");
+        const T_Chat = root.lookupType("avant.ProtoCSReqMap3DChat");
+        const T_ChatN = root.lookupType("avant.ProtoCSMap3DNotifyChat");
 
         const SHOOT_DIST = 200;
         let GROUND_Y = 500000;
@@ -1176,7 +1287,7 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
 
         function inUi(el) {
             return !!(el && el.closest && el.closest(
-                '#console, #telem, #stats, #killfeed, #hint, #hpwrap, #authority, #btnFire, #btnJump, #btnCrouch, #blocker'));
+                '#console, #telem, #stats, #killfeed, #hint, #hpwrap, #authority, #btnFire, #btnJump, #btnCrouch, #blocker, #chat'));
         }
 
         if (isTouch) {
@@ -1322,6 +1433,7 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
                     telemMapEl.textContent = String(r.mapId);
                     setConsole(false);
                     document.getElementById("blocker").classList.remove("hidden");
+                    chatEl.classList.remove("hidden"); // 进入房间后显示聊天
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA: {
@@ -1367,6 +1479,11 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
                 case Cmd.PROTO_CMD_CS_RES_MAP3D_SHOOT: {
                     const r = T_ShootR.decode(msg.protocol);
                     if (r.damage > 0) { kills++; document.getElementById("kills").textContent = kills; }
+                    break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_CHAT: {
+                    const c = T_ChatN.decode(msg.protocol);
+                    addChatLine(String(c.senderId), String(c.message));
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_RES_MAP3D_PONG: {
@@ -1417,6 +1534,63 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
                 sendInner(T_Ping, { clientTime: Date.now() }, Cmd.PROTO_CMD_CS_REQ_MAP3D_PING);
             }
         }, 2500);
+
+        /* ------- 房间文字聊天: T键 打开/关闭, Enter 发送, Esc 关闭 -------
+           消息统一走服务器广播(PROTO_CMD_CS_MAP3D_NOTIFY_CHAT), 本机也回显, 不做本地echo */
+        const chatEl = document.getElementById("chat");
+        const chatLogEl = document.getElementById("chatLog");
+        const chatInputEl = document.getElementById("chatInput");
+        let chatOpen = false;
+        const CHAT_MAX_LEN = 120;
+        const CHAT_LINE_MAX = 60;
+
+        function addChatLine(senderId, text) {
+            const line = document.createElement("div");
+            line.className = "chat-line " + (senderId === selfId ? "self" : "other");
+            const cid = document.createElement("span");
+            cid.className = "cid";
+            cid.textContent = senderId;
+            line.appendChild(cid);
+            line.appendChild(document.createTextNode(text));
+            chatLogEl.appendChild(line);
+            while (chatLogEl.children.length > CHAT_LINE_MAX) chatLogEl.firstChild.remove();
+            chatLogEl.scrollTop = chatLogEl.scrollHeight;
+        }
+
+        function openChat() {
+            if (chatOpen || !selfId) return;
+            chatOpen = true;
+            if (document.pointerLockElement) document.exitPointerLock();
+            setTimeout(() => chatInputEl.focus(), 60);
+        }
+
+        function closeChat() {
+            if (!chatOpen) return;
+            chatOpen = false;
+            chatInputEl.value = "";
+            chatInputEl.blur();
+            // 恢复第一人称锁定提示 (与 ESC 释放锁后的行为一致)
+            if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
+            hintEl.classList.remove("hide");
+        }
+
+        function sendChat() {
+            const text = chatInputEl.value.trim();
+            if (!text) return;
+            sendInner(T_Chat, { message: text.slice(0, CHAT_MAX_LEN) }, Cmd.PROTO_CMD_CS_REQ_MAP3D_CHAT);
+            chatInputEl.value = "";
+            chatInputEl.focus();
+        }
+
+        chatInputEl.addEventListener("keydown", e => {
+            e.stopPropagation(); // 打字时不触发游戏按键
+            if (e.key === "Enter") { e.preventDefault(); sendChat(); }
+            else if (e.key === "Escape") { e.preventDefault(); closeChat(); }
+        });
+        chatInputEl.addEventListener("blur", () => { if (chatOpen) closeChat(); });
+        // 阻止点"发送"时输入框失焦(失焦会关闭聊天并清空输入), 保证click能取到内容
+        document.getElementById("chatSend").addEventListener("pointerdown", e => e.preventDefault());
+        document.getElementById("chatSend").addEventListener("click", sendChat);
 
         /* ---------------- Three.js 场景 ---------------- */
         const scene = new THREE.Scene();
@@ -1684,7 +1858,8 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
                 blocker.classList.add("hidden");
                 hintEl.classList.add("hide");
             } else {
-                if (ws && ws.readyState === 1) blocker.classList.remove("hidden");
+                // 聊天打开期间释放鼠标锁属正常, 不弹"点击进入"遮罩
+                if (!chatOpen && ws && ws.readyState === 1) blocker.classList.remove("hidden");
                 hintEl.classList.remove("hide");
             }
         });
@@ -1706,10 +1881,20 @@ message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; 
         const INPUT_SEND_SPEED = 2;
         const key = {};
         addEventListener("keydown", e => {
+            // 在任意输入框(聊天/控制台)内打字时不触发游戏按键
+            if (e.target && e.target.tagName === "INPUT") return;
             key[e.key.toLowerCase()] = true;
             if (e.code === "Space") { e.preventDefault(); tryJump(); }
+            // T 键 打开/关闭聊天 (触屏无鼠标锁定, 直接点输入框即可)
+            if ((e.key === "t" || e.key === "T") && !e.repeat && !isTouch) {
+                e.preventDefault();
+                if (chatOpen) closeChat(); else openChat();
+            }
         });
-        addEventListener("keyup", e => key[e.key.toLowerCase()] = false);
+        addEventListener("keyup", e => {
+            if (e.target && e.target.tagName === "INPUT") return;
+            key[e.key.toLowerCase()] = false;
+        });
 
         function tryJump() { if (onGround) { velY.v = JUMP_SPEED; onGround = false; } }
 

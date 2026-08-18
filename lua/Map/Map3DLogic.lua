@@ -460,6 +460,37 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
     return bulletId
 end
 
+-- 房间文字聊天: 广播给当前地图(房间)内的所有玩家
+---@param senderId string 发送者userId
+---@param message  string 聊天内容
+function Map3D:SendChat(senderId, message)
+    local mapPlayer = self:GetMapPlayerByUserId(senderId)
+    if mapPlayer == nil then return end
+
+    -- 简单限频: 同一玩家至少间隔300ms才能再发, 防止刷屏
+    local now = TimeMgr.GetMS()
+    if mapPlayer.lastChatMS ~= nil and now - mapPlayer.lastChatMS < 300 then
+        return
+    end
+    mapPlayer.lastChatMS = now
+
+    local MsgHandler = require("MsgHandlerLogic")
+    local PlayerMgr = require("PlayerMgrLogic")
+
+    ---@type ProtoLua_ProtoCSMap3DNotifyChat
+    local chatPayload = { senderId = senderId, message = message }
+
+    for userId in pairs(self.players) do
+        local player = PlayerMgr.GetPlayerByUserId(userId)
+        if player ~= nil then
+            MsgHandler:Send2Client(
+                player:GetClientGID(), player:GetWorkerIdx(),
+                ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_CHAT, chatPayload
+            )
+        end
+    end
+end
+
 -- 更新子弹
 function Map3D:UpdateBullets()
     local timeMS = TimeMgr.GetMS()

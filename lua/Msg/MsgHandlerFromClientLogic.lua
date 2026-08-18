@@ -299,6 +299,20 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_SHOOT] = function 
     MsgHandler:Send2Client(clientGID, workerIdx, ProtoLua_ProtoCmd.PROTO_CMD_CS_RES_MAP3D_SHOOT, res)
 end
 
+--- PROTO_CMD_CS_REQ_MAP3D_CHAT 3D地图房间聊天请求
+--- 发送者身份取自会话playerId, 服务器广播给房间内所有玩家(含发送者自己)
+---@param message ProtoLua_ProtoCSReqMap3DChat
+MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_CHAT] = function (
+    playerId, clientGID, workerIdx, cmd, message
+)
+    local player = PlayerMgr.GetPlayerByPlayerId(playerId)
+    if player == nil then
+        return
+    end
+
+    player:GetComponents().map3d:MapChatReq(message)
+end
+
 ---@param message ProtoLua_ProtoCSReqCreateUser
 MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_CREATE_USER] = function (
     playerId, clientGID, workerIdx, cmd, message
