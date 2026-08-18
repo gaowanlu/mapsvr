@@ -1062,6 +1062,7 @@ enum ProtoCmd{
     PROTO_CMD_CS_REQ_MAP3D_SHOOT = 2021; PROTO_CMD_CS_RES_MAP3D_SHOOT = 2022;
     PROTO_CMD_CS_MAP3D_NOTIFY_BULLET = 2023; PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
     PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
+    PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA = 2026; PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT = 2027;
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000; PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
     PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002; PROTO_CMD_CS_REQ_CREATE_USER = 3003;
     PROTO_CMD_CS_RES_CREATE_USER = 3004; PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
@@ -1085,6 +1086,9 @@ message ProtoCSMap3DNotifyHitPlayer{ string bulletId=1; string targetId=2; int32
 message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp=3; int32 damage=4; int32 x=5; int32 y=6; int32 z=7; }
 message ProtoCSReqMap3DPing{ uint64 clientTime=1; }
 message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
+message ProtoMap3DBoxData{ int32 x=1; int32 y=2; int32 z=3; int32 w=4; int32 h=5; int32 d=6; uint32 color=7; bool collide=8; }
+message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; }
+message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; }
 `;
 
         const root = protobuf.parse(protoText).root;
@@ -1104,9 +1108,12 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         const T_Hurt = root.lookupType("avant.ProtoCSMap3DNotifyPlayerHurt");
         const T_Ping = root.lookupType("avant.ProtoCSReqMap3DPing");
         const T_Pong = root.lookupType("avant.ProtoCSResMap3DPong");
+        const T_EnterR = root.lookupType("avant.ProtoCSMap3DEnterRes");
+        const T_MapData = root.lookupType("avant.ProtoCSMap3DNotifyMapData");
+        const T_WallHit = root.lookupType("avant.ProtoCSMap3DNotifyBulletWallHit");
 
         const SHOOT_DIST = 200;
-        const GROUND_Y = 500000;
+        let GROUND_Y = 500000;
 
         // ---- 坐标校准 ----
         // 服务器以地图中心 (500000,500000) 为绝对坐标基准；客户端收到后平移到本地原点，
@@ -1298,10 +1305,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                         }
                         const lp = loc(p);
                         m.targetPos.set(lp.x, lp.y, lp.z);
-                        // 敌人穿墙修复：服务器移动积分不带碰撞检测，敌人坐标可能被推进墙内，
-                        // 这里对本端渲染的敌人目标位置做与自身一致的碰撞钳制，避免敌人穿墙显示，
-                        // 使敌人位置与对方自己屏幕上看到的位置基本一致。
-                        if (pId !== selfId) collide(m.targetPos);
+                        // 服务器已做权威墙体碰撞, 同步坐标不会穿墙, 直接使用
                         m.updateTime = performance.now();
                         if (pId === selfId) serverPos.set(lp.x, lp.y, lp.z);
                     });
@@ -1313,16 +1317,32 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
                     });
                     break;
                 }
-                case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES:
-                    telemMapEl.textContent = "4";
+                case Cmd.PROTO_CMD_CS_MAP3D_ENTER_RES: {
+                    const r = T_EnterR.decode(msg.protocol);
+                    telemMapEl.textContent = String(r.mapId);
                     setConsole(false);
                     document.getElementById("blocker").classList.remove("hidden");
                     break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA: {
+                    const d = T_MapData.decode(msg.protocol);
+                    buildMapFromServer(d);
+                    break;
+                }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
                     const b = T_Bullet.decode(msg.protocol);
                     const lb = loc(b);
                     b.x = lb.x; b.y = lb.y; b.z = lb.z;
                     handleBullet(b); break;
+                }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT: {
+                    const w = T_WallHit.decode(msg.protocol);
+                    console.log(w);
+                    if (offsetReady) { w.x -= coordOffset.x; w.z -= coordOffset.z; }
+                    // 权威碰撞点在服务器计算; 本机射击已有本地即时特效,
+                    // 服务器碰撞点用于其他玩家视角的墙体火花
+                    if (String(w.shooterId) !== selfId) createWallImpact(w.x, w.y, w.z);
+                    break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER: {
                     const h = T_Hit.decode(msg.protocol);
@@ -1450,20 +1470,15 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
         }
 
         /* ============================================================
-           地图: 工业战区 ARENA-4（固定布局，出生点(0,0)保持开阔）
-           构成: 边界围墙 + 四个象限建筑(带门洞) + 过道掩体墙
-                 + 四角哨塔 + 中央广场掩体 + 散落集装箱
+           地图: 由服务器下发配置构建 (PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA)
+           墙体/建筑唯一数据源是服务器 Lua 配置 (lua/Map/Map3DMapConfig.lua),
+           权威碰撞(人物/子弹 vs 墙体)在服务器执行;
+           客户端用同一份盒数据渲染地图, 并做本地移动预测
            ============================================================ */
         const obstacles = [];                 // 参与碰撞的 AABB 盒
         const obstacleMeshes = [];            // 参与射线检测的网格(射击/遮挡)
-
-        const M_WALL = 0x3b4f68;              // 主墙体 钢蓝
-        const M_WALL2 = 0x3c3550;             // 次墙体 紫灰
-        const M_COVER = 0x2e4257;             // 过道掩体 深蓝灰
-        const M_CRATE = 0x6b5538;             // 木箱 棕
-        const M_CRATE2 = 0x4f6473;            // 集装箱 灰蓝
-        const M_TOWER = 0x35455c;             // 哨塔
-        const M_ROOF = 0x232f41;              // 屋顶板
+        let mapMeshes = [];                   // 地图网格(重建地图时清理)
+        let mapName = "";
 
         function addBox(x, yRel, z, w, h, d, color, collide = true) {
             const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
@@ -1471,6 +1486,7 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             m.position.set(x, GROUND_Y + yRel, z);
             m.castShadow = true; m.receiveShadow = true;
             scene.add(m);
+            mapMeshes.push(m);
             if (collide) {
                 obstacles.push({ mesh: m, half: new THREE.Vector3(w / 2, h / 2, d / 2) });
                 obstacleMeshes.push(m);
@@ -1478,80 +1494,31 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             return m;
         }
 
-        // 水平墙(沿X) / 垂直墙(沿Z)，t 为厚度
-        function wallH(x1, x2, z, h, t, color) {
-            addBox((x1 + x2) / 2, h / 2, z, Math.abs(x2 - x1), h, t, color);
+        const MAP_DATA_SCALE = 1000;          // 服务器坐标缩放: 本地单位×1000
+        function buildMapFromServer(data) {
+            console.log(data);
+            // 清理旧地图
+            for (const m of mapMeshes) scene.remove(m);
+            mapMeshes = [];
+            obstacles.length = 0;
+            obstacleMeshes.length = 0;
+
+            mapName = data.name;
+            if (data.groundY) {
+                GROUND_Y = data.groundY;      // 地面高度以服务器为准
+                ground.position.y = GROUND_Y;
+                gridHelper.position.y = GROUND_Y;
+                sun.position.y = GROUND_Y + 120;
+                sunTarget.position.y = GROUND_Y;
+            }
+
+            for (const b of data.boxes) {
+                addBox(b.x / MAP_DATA_SCALE, b.y / MAP_DATA_SCALE, b.z / MAP_DATA_SCALE,
+                    b.w / MAP_DATA_SCALE, b.h / MAP_DATA_SCALE, b.d / MAP_DATA_SCALE,
+                    b.color, b.collide);
+            }
+            log("✓ 地图配置已下发: " + mapName + " 盒数=" + data.boxes.length + " (地面Y=" + GROUND_Y + ")");
         }
-        function wallV(z1, z2, x, h, t, color) {
-            addBox(x, h / 2, (z1 + z2) / 2, t, h, Math.abs(z2 - z1), color);
-        }
-
-        // 带门洞的水平/垂直墙：以 (gx,gz) 为中心留 gap 宽的门洞
-        function wallHGap(x1, x2, z, gx, gap, h, t, color) {
-            const a = gx - gap / 2, b = gx + gap / 2;
-            if (x1 < a) wallH(x1, a, z, h, t, color);
-            if (b < x2) wallH(b, x2, z, h, t, color);
-        }
-        function wallVGap(z1, z2, x, gz, gap, h, t, color) {
-            const a = gz - gap / 2, b = gz + gap / 2;
-            if (z1 < a) wallV(z1, a, x, h, t, color);
-            if (b < z2) wallV(b, z2, x, h, t, color);
-        }
-
-        // 四墙建筑(带悬挑屋顶板)；doors: {n,s,e,w} 对应带门洞的墙
-        function building(x, z, w, d, h, color, roof, doors) {
-            const t = 0.7, gap = 3.0;
-            const L = x - w / 2, R = x + w / 2, T = z - d / 2, B = z + d / 2;
-            if (doors.n) wallHGap(L, R, T, x, gap, h, t, color); else wallH(L, R, T, h, t, color);
-            if (doors.s) wallHGap(L, R, B, x, gap, h, t, color); else wallH(L, R, B, h, t, color);
-            if (doors.w) wallVGap(T, B, L, z, gap, h, t, color); else wallV(T, B, L, h, t, color);
-            if (doors.e) wallVGap(T, B, R, z, gap, h, t, color); else wallV(T, B, R, h, t, color);
-            if (roof) addBox(x, h + 0.15, z, w + 1.6, 0.3, d + 1.6, M_ROOF, false);
-        }
-
-        /* ---- 1. 边界围墙(可打，不可翻越) ---- */
-        const WALL_H = 4.5;
-        wallH(-58, 58, -58, WALL_H, 1.0, M_WALL);   // 北
-        wallH(-58, 58, 58, WALL_H, 1.0, M_WALL);    // 南
-        wallV(-58, 58, -58, WALL_H, 1.0, M_WALL);   // 西
-        wallV(-58, 58, 58, WALL_H, 1.0, M_WALL);    // 东
-
-        /* ---- 2. 四个象限建筑(朝向中心广场开门) ---- */
-        building(-32, -30, 26, 24, 4.2, M_WALL, true, { e: true, s: true });   // A 西北
-        building(32, -30, 26, 24, 4.2, M_WALL2, true, { w: true, s: true });  // B 东北
-        building(-32, 30, 26, 24, 4.2, M_WALL2, true, { e: true, n: true });  // C 西南
-        building(32, 30, 26, 24, 4.2, M_WALL, true, { w: true, n: true });    // D 东南
-
-        /* ---- 3. 四角哨塔(地标+掩体) ---- */
-        addBox(-51, 3.5, -51, 3.5, 7, 3.5, M_TOWER);
-        addBox(51, 3.5, -51, 3.5, 7, 3.5, M_TOWER);
-        addBox(-51, 3.5, 51, 3.5, 7, 3.5, M_TOWER);
-        addBox(51, 3.5, 51, 3.5, 7, 3.5, M_TOWER);
-
-        /* ---- 4. 中央广场掩体(出生点(0,0)保持开阔) ---- */
-        for (const [cx, cz] of [[5, 5], [-5, 5], [5, -5], [-5, -5]]) {
-            addBox(cx, 1.2, cz, 2.4, 2.4, 2.4, M_CRATE);          // 木箱四角
-        }
-        for (const [cx, cz] of [[13, 13], [-13, 13], [13, -13], [-13, -13]]) {
-            addBox(cx, 1.75, cz, 1.8, 3.5, 1.8, M_CRATE2);        // 立柱外围
-        }
-
-        /* ---- 5. 建筑间过道掩体墙(中央留缺口通行) ---- */
-        const ALLEY_H = 3.0, ALLEY_T = 0.7, ALLEY_GAP = 5.0;
-        wallHGap(-19, 19, -30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);   // A-B 之间(东西向)
-        wallHGap(-19, 19, 30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);    // C-D 之间
-        wallVGap(-19, 19, -30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);   // A-C 之间(南北向)
-        wallVGap(-19, 19, 30, 0, ALLEY_GAP, ALLEY_H, ALLEY_T, M_COVER);    // B-D 之间
-
-        /* ---- 6. 散落集装箱/木箱掩体 ---- */
-        addBox(-24, 1.25, -12, 5, 2.5, 2.5, M_CRATE2);   // A 东南侧
-        addBox(24, 1.25, -12, 5, 2.5, 2.5, M_CRATE2);    // B 西南侧
-        addBox(-24, 1.25, 12, 5, 2.5, 2.5, M_CRATE2);    // C 东北侧
-        addBox(24, 1.25, 12, 5, 2.5, 2.5, M_CRATE2);     // D 西北侧
-        addBox(-40, 0.9, -8, 2.4, 1.8, 2.4, M_CRATE);    // 西侧过道
-        addBox(40, 0.9, -8, 2.4, 1.8, 2.4, M_CRATE);     // 东侧过道
-        addBox(-40, 0.9, 8, 2.4, 1.8, 2.4, M_CRATE);
-        addBox(40, 0.9, 8, 2.4, 1.8, 2.4, M_CRATE);
 
         const gridHelper = new THREE.GridHelper(400, 80, 0x1a3a5c, 0x0f243f);
         gridHelper.position.y = GROUND_Y;
@@ -1856,13 +1823,10 @@ message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
             if (!onGround && velY.v > 0) my = INPUT_SEND_SPEED;
             else if (key.shift || crouch.on) my = -INPUT_SEND_SPEED;
 
-            // —— 碰墙穿墙修复（根因修复）——
-            // 服务器无碰撞检测，把 归一化后按 maxSpeed 持续推进。
-            // 旧方案缺陷：用"碰撞后剩余位移"当方向发送，服务器归一化后全速撞墙——
-            //   距墙 0.6u → actX=0.6 → round=1 → 服务器全速穿过。
-            // 新方案：从本机当前位置向 X / Z 各轴独立做小步探测，
-            //   被 collide 推回 = 该轴有墙 → 该轴方向置零。
-            //   只把可通行方向发给服务器，贴墙时自动只剩切向分量 = 滑动。
+            // —— 本地预测方向探测 ——
+            // 权威碰撞(防穿墙)在服务器执行, 客户端用服务器下发的同一份盒数据做本地预测。
+            // 从本机当前位置向 X / Z 各轴独立做小步探测, 被 collide 推回 = 该轴有墙 → 该轴方向置零,
+            // 只把可通行方向发给服务器, 使本机预测与服务器权威位置在贴墙时保持一致(漂移最小)。
             const PROBE = 1.0; // ≥ 服务器单帧最大位移，确保服务器不会冲过探测范围
             let dirX = mv.dx * mv.mag;
             let dirZ = mv.dz * mv.mag;

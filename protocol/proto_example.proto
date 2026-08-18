@@ -265,3 +265,38 @@ message ProtoCSMap3DNotifyPlayerHurt
   int32 z=7;
 }
 
+// Map3D地图墙体/建筑盒子
+// 坐标为地图本地坐标×1000: x/z 相对地图中心(出生点), y 相对地面
+message ProtoMap3DBoxData
+{
+  int32 x=1;
+  int32 y=2;
+  int32 z=3;
+  int32 w=4;
+  int32 h=5;
+  int32 d=6;
+  uint32 color=7;
+  bool collide=8;
+}
+
+// Map3D地图墙体/建筑配置下发(玩家进入地图时发送)
+// PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA
+message ProtoCSMap3DNotifyMapData
+{
+  uint32 mapId=1;
+  string name=2;
+  int32 groundY=3;
+  repeated ProtoMap3DBoxData boxes=4;
+}
+
+// Map3D子弹击中墙体/建筑通知(碰撞点)
+// PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT
+message ProtoCSMap3DNotifyBulletWallHit
+{
+  string bulletId=1;
+  string shooterId=2;
+  int32 x=3;
+  int32 y=4;
+  int32 z=5;
+}
+

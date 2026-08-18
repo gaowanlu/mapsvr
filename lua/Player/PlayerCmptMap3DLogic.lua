@@ -90,6 +90,15 @@ function PlayerCmptMap3D:EnterNewMap(mapId)
         ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA, protoCSMap3DNotifyInitData
     )
 
+    -- 下发地图墙体/建筑配置, 客户端据此渲染地图并做本地预测
+    -- PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA
+    ---@type ProtoLua_ProtoCSMap3DNotifyMapData
+    local mapDataPayload = map:GetMapDataPayload()
+    MsgHandler:Send2Client(
+        self:GetPlayer():GetClientGID(), self:GetPlayer():GetWorkerIdx(),
+        ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA, mapDataPayload
+    )
+
     return ProtoLua_ProtoErrCode.OK
 end
 

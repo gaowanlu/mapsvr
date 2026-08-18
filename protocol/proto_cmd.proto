@@ -91,6 +91,10 @@ enum ProtoCmd
     PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER = 2024;
     // Map3D玩家受伤通知
     PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
+    // Map3D地图墙体/建筑配置下发(玩家进入地图时发送)
+    PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA = 2026;
+    // Map3D子弹击中墙体/建筑通知(碰撞点)
+    PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT = 2027;
 
     // 写dbuserreocord表数据
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;

@@ -52,3 +52,15 @@
 ---@field map3DOctree     Map3DOctree                    八叉树
 ---@field bullets         table<string, Map3DBulletType>
 ---@field nextBulletIdSeq integer                        下一发子弹IDSeq
+---@field groundY         number                         地面绝对Y
+---@field mapName         string                         地图名称
+---@field collideBoxes    table<integer, Map3DCollideBoxType> 参与玩家/子弹碰撞的盒(绝对坐标)
+---@field renderBoxes     table<integer, Map3DBoxConfig> 下发给客户端渲染的盒(地图本地坐标)
+
+---@class Map3DCollideBoxType
+---@field x  number 中心X(绝对坐标)
+---@field y  number 中心Y(绝对坐标)
+---@field z  number 中心Z(绝对坐标)
+---@field hw number 半宽(X)
+---@field hh number 半高(Y)
+---@field hd number 半深(Z)
