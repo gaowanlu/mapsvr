@@ -487,35 +487,54 @@ function Map3D:UpdateBullets()
         bullet.pos.y = bullet.pos.y + bullet.dir.y * speed
         bullet.pos.z = bullet.pos.z + bullet.dir.z * speed
 
-        -- 子弹与墙体/建筑碰撞 (服务器权威): 命中则销毁子弹并广播碰撞点, 防止隔墙击中
+        -- 1. Find the earliest collision (wall or player)
+        ---@type number
+        local minT = 2
+        local hitType = nil -- "wall" or "player"
+        local hitData = {}
+
+        -- Check walls
         local wallT = self:CheckBulletWallCCD(bullet)
-        if wallT ~= nil then
+        if wallT ~= nil and wallT < minT then
+            minT = wallT
+            hitType = "wall"
+        end
+
+        -- Check players
+        for userId, player in pairs(self.players) do
+            if userId ~= bullet.shooterId then
+                local hit, t = self:CheckBulletPlayerCCD(bullet, player)
+                if hit and t < minT then
+                    minT = t
+                    hitType = "player"
+                    hitData.userId = userId
+                    hitData.hitPos = {
+                        x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * t,
+                        y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * t,
+                        z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * t
+                    }
+                end
+            end
+        end
+
+        -- 2. Process the earliest hit
+        if hitType == "wall" then
             local hitPos = {
-                x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * wallT,
-                y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * wallT,
-                z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * wallT
+                x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * minT,
+                y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * minT,
+                z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * minT
             }
             self:NotifyBulletWallHit(bulletId, bullet.shooterId, hitPos)
             bullet.isExpired = true
             toRemove[#toRemove + 1] = bulletId
-            goto continue
+        elseif hitType == "player" then
+            self:NotifyPlayerHit(bulletId, hitData.userId, hitData.hitPos)
+            bullet.isExpired = true
+            toRemove[#toRemove + 1] = bulletId
         end
 
-        for userId, player in pairs(self.players) do
-            if userId ~= bullet.shooterId then
-                local hit, hitRatio = self:CheckBulletPlayerCCD(bullet, player)
-                if hit then
-                    local hitPos = {
-                        x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * hitRatio,
-                        y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * hitRatio,
-                        z = bullet.prevPos.z + (bullet.pos.z - bullet.prevPos.z) * hitRatio
-                    }
-                    self:NotifyPlayerHit(bulletId, userId, hitPos)
-                    bullet.isExpired = true
-                    toRemove[#toRemove + 1] = bulletId
-                    goto continue
-                end
-            end
+        if bullet.isExpired then
+            goto continue
         end
 
         local range = {
