@@ -176,13 +176,27 @@ function Map3D:OnTick()
     end
 end
 
---- 计算出生点
+-- 出生点环形错开参数
+local SPAWN_RING_RADIUS = 14 -- 出生环半径(本地坐标), 落在地图中心无掩体的开阔区
+local SPAWN_RING_SLOTS = 20  -- 环上的出生槽位数
+
+--- 计算出生点 (绝对坐标)
+--- 首个玩家出生在地图中心, 后续玩家按序号在中心周围环形错开,
+--- 避免所有玩家同点出生 (同点出生 + 无玩家间碰撞会触发 t=0 任意方向误伤)
+---@param index integer 当前地图内已有玩家数(0-based 序号)
 ---@return Vec3f
-function Map3D:FindSpawnPoint()
+function Map3D:FindSpawnPoint(index)
     local x = math.floor(self.MapDbData.size.x / 2)
     local y = math.floor(self.MapDbData.size.y / 2)
     local z = math.floor(self.MapDbData.size.z / 2)
-    return { x = x, y = y, z = z }
+
+    if index <= 0 then
+        return { x = x, y = y, z = z }
+    end
+
+    local slot = index % SPAWN_RING_SLOTS
+    local angle = slot * (math.pi * 2 / SPAWN_RING_SLOTS)
+    return { x = x + SPAWN_RING_RADIUS * math.cos(angle), y = y, z = z + SPAWN_RING_RADIUS * math.sin(angle) }
 end
 
 -- 新玩家加入地图
@@ -194,7 +208,12 @@ function Map3D:PlayerJoinMap(userId)
         return false
     end
 
-    local spawnPoint = self:FindSpawnPoint()
+    -- 统计当前地图内玩家数, 用于环形错开出生点
+    local playerCount = 0
+    for _ in pairs(self.players) do
+        playerCount = playerCount + 1
+    end
+    local spawnPoint = self:FindSpawnPoint(playerCount)
 
     ---@type Map3DPlayerType
     local newMap3DPlayer = {
@@ -279,6 +298,29 @@ function Map3D:MapPlayerInput(userId, dirX, dirY, dirZ, seq, clientTime)
     map3DPlayer.lastClientTime = clientTime
 end
 
+--- 把玩家位置夹回世界范围: X/Z 夹回地图边界内(留身体半径余量), Y 不低于地面
+---@param mapPlayer Map3DPlayerType
+function Map3D:ClampPlayerToWorld(mapPlayer)
+    local mapSize = self:GetSize()
+    local r = mapPlayer.bodyRadius
+
+    if mapPlayer.pos.x < r then mapPlayer.pos.x = r end
+    if mapPlayer.pos.z < r then mapPlayer.pos.z = r end
+    if mapPlayer.pos.x > mapSize.x - r then mapPlayer.pos.x = mapSize.x - r end
+    if mapPlayer.pos.z > mapSize.z - r then mapPlayer.pos.z = mapSize.z - r end
+    if mapPlayer.pos.y < mapPlayer.groundY then mapPlayer.pos.y = mapPlayer.groundY end
+end
+
+--- 重新插入八叉树 (先移出旧节点再插入新节点)
+---@param mapPlayer Map3DPlayerType
+function Map3D:UpdatePlayerOctree(mapPlayer)
+    if mapPlayer.map3DOctree ~= nil then
+        Map3DOctree.RemoveItemFromList(mapPlayer.map3DOctree, mapPlayer.userId)
+        mapPlayer.map3DOctree = nil
+    end
+    Map3DOctree.OcInsert(self.map3DOctree, mapPlayer)
+end
+
 ---@param mapPlayer Map3DPlayerType
 function Map3D:PlayerPhysicsMove(mapPlayer)
     -- 转为秒，避免 math.floor 截断导致位移为0
@@ -316,23 +358,13 @@ function Map3D:PlayerPhysicsMove(mapPlayer)
     end
 
     -- 地图边界控制
-    local mapSize = self:GetSize()
-    local playerRadius = mapPlayer.bodyRadius
-
-    if mapPlayer.pos.x < playerRadius then mapPlayer.pos.x = playerRadius end
-    if mapPlayer.pos.z < playerRadius then mapPlayer.pos.z = playerRadius end
-    if mapPlayer.pos.x > mapSize.x - playerRadius then mapPlayer.pos.x = mapSize.x - playerRadius end
-    if mapPlayer.pos.z > mapSize.z - playerRadius then mapPlayer.pos.z = mapSize.z - playerRadius end
+    self:ClampPlayerToWorld(mapPlayer)
 
     -- 墙体/建筑碰撞 (服务器权威, 防止穿墙)
     self:PlayerCollide(mapPlayer)
 
     -- 更新八叉树
-    if mapPlayer.map3DOctree ~= nil then
-        Map3DOctree.RemoveItemFromList(mapPlayer.map3DOctree, mapPlayer.userId)
-        mapPlayer.map3DOctree = nil
-    end
-    Map3DOctree.OcInsert(self.map3DOctree, mapPlayer)
+    self:UpdatePlayerOctree(mapPlayer)
 end
 
 --- 玩家与墙体/建筑的碰撞解析 (最小穿透轴, 服务器权威)
@@ -358,6 +390,79 @@ function Map3D:PlayerCollide(mapPlayer)
             else
                 pos.z = pos.z + (dz > 0 and pz or -pz)
             end
+        end
+    end
+end
+
+--- 玩家间分离碰撞: 把两个在 XZ 平面上重叠的身体沿连线各推开一半
+--- (与 PlayerCollide 一致, 只在 XZ 平面处理, 半径取身体球半径 bodyRadius)
+--- 分离后双方重新夹回世界范围并做一次墙体碰撞, 防止被推进墙里/地下
+---@param a Map3DPlayerType
+---@param b Map3DPlayerType
+---@return boolean 是否发生了推开
+function Map3D:SeparatePlayers(a, b)
+    local ax, az = a.pos.x, a.pos.z
+    local bx, bz = b.pos.x, b.pos.z
+
+    local dx = bx - ax
+    local dz = bz - az
+    local minDist = a.bodyRadius + b.bodyRadius
+    local distSq = dx * dx + dz * dz
+    if distSq >= minDist * minDist then
+        return false
+    end
+
+    local dist = math.sqrt(distSq)
+    local ux, uz
+    if dist <= 0.0001 then
+        -- 完全重合: 单位向量无定义, 用固定方向兜底
+        ux, uz = 1, 0
+        dist = 0
+    else
+        ux, uz = dx / dist, dz / dist
+    end
+
+    -- 各推开一半重叠量
+    local push = (minDist - dist) * 0.5
+    a.pos.x = a.pos.x - ux * push
+    a.pos.z = a.pos.z - uz * push
+    b.pos.x = b.pos.x + ux * push
+    b.pos.z = b.pos.z + uz * push
+
+    -- 防止分离把玩家推进边界外/地下/墙里
+    self:ClampPlayerToWorld(a)
+    self:ClampPlayerToWorld(b)
+    self:PlayerCollide(a)
+    self:PlayerCollide(b)
+
+    return true
+end
+
+--- 每帧对所有玩家做两两分离 (O(n^2), 地图内玩家数小可接受),
+--- 避免玩家穿模重叠; 发生过位置变化的玩家最后统一重插八叉树
+function Map3D:UpdatePlayerSeparation()
+    ---@type table<integer, string>
+    local users = {}
+    for userId in pairs(self.players) do
+        users[#users + 1] = userId
+    end
+
+    local moved = {}
+    for i = 1, #users do
+        local a = self.players[users[i]]
+        for j = i + 1, #users do
+            local b = self.players[users[j]]
+            if self:SeparatePlayers(a, b) then
+                moved[a.userId] = true
+                moved[b.userId] = true
+            end
+        end
+    end
+
+    for userId in pairs(moved) do
+        local mapPlayer = self.players[userId]
+        if mapPlayer ~= nil then
+            self:UpdatePlayerOctree(mapPlayer)
         end
     end
 end
@@ -399,6 +504,7 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
 
     local bulletSpeedPerMs = self:GetBulletSpeedRatio() / 1000
     local distLifeTime = math.floor(shootDist / bulletSpeedPerMs)
+    -- lifeTime 仅用于下发给客户端的显示时长(>=1 个 tick), 服务器实际射程由 remainingDist 决定
     local lifeTime = math.min(self:GetBulletLifeTime(), distLifeTime)
     lifeTime = math.max(self:GetMapDbData().DT_MS, lifeTime)
 
@@ -413,7 +519,9 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
         spawnTime = now,
         speedRatio = self:GetBulletSpeedRatio(),
         collisionRadius = self:GetBulletCollisionRadius(),
-        isExpired = false
+        isExpired = false,
+        -- 剩余射程: 距离模型的权威射程, 保证子弹总位移 == shootDist (而非按 tick 数硬凑)
+        remainingDist = shootDist
     }
 
     self.bullets[bulletId] = newBullet
@@ -484,8 +592,8 @@ function Map3D:SendChat(senderId, message)
         local player = PlayerMgr.GetPlayerByUserId(userId)
         if player ~= nil then
             MsgHandler:Send2Client(
-                player:GetClientGID(), player:GetWorkerIdx(),
-                ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_CHAT, chatPayload
+                player:GetClientGID(), player:GetWorkerIdx(), ProtoLua_ProtoCmd.PROTO_CMD_CS_MAP3D_NOTIFY_CHAT,
+                chatPayload
             )
         end
     end
@@ -504,24 +612,30 @@ function Map3D:UpdateBullets()
             goto continue
         end
 
-        if timeMS - bullet.spawnTime > bullet.lifeTime then
+        -- 安全上限检查: 正常销毁由剩余射程耗尽触发,
+        -- 这里只用子弹最大生命(GetBulletLifeTime)兜底, 防止异常子弹无限存活
+        -- (不能用 bullet.lifeTime 判断: 它现在仅表示下发给客户端的显示时长)
+        if timeMS - bullet.spawnTime > self:GetBulletLifeTime() then
             bullet.isExpired = true
             toRemove[#toRemove + 1] = bulletId
             goto continue
         end
 
+        -- 距离模型: 本 tick 位移不超过剩余射程, 保证子弹总位移 == shootDist
         local speed = bullet.speedRatio / 1000 * self:GetMapDbData().DT_MS
+        local step = math.min(speed, bullet.remainingDist)
         bullet.prevPos.x = bullet.pos.x
         bullet.prevPos.y = bullet.pos.y
         bullet.prevPos.z = bullet.pos.z
-        bullet.pos.x = bullet.pos.x + bullet.dir.x * speed
-        bullet.pos.y = bullet.pos.y + bullet.dir.y * speed
-        bullet.pos.z = bullet.pos.z + bullet.dir.z * speed
+        bullet.pos.x = bullet.pos.x + bullet.dir.x * step
+        bullet.pos.y = bullet.pos.y + bullet.dir.y * step
+        bullet.pos.z = bullet.pos.z + bullet.dir.z * step
+        bullet.remainingDist = bullet.remainingDist - step
 
-        -- 1. Find the earliest collision (wall or player)
+        -- 1. Find the earliest collision (wall / env / player)
         ---@type number
         local minT = 2
-        local hitType = nil -- "wall" or "player"
+        local hitType = nil -- "wall" / "env" / "player"
         local hitData = {}
 
         -- Check walls
@@ -529,6 +643,13 @@ function Map3D:UpdateBullets()
         if wallT ~= nil and wallT < minT then
             minT = wallT
             hitType = "wall"
+        end
+
+        -- Check environment: ground plane + map boundary
+        local envT = self:CheckBulletEnvCCD(bullet)
+        if envT ~= nil and envT < minT then
+            minT = envT
+            hitType = "env"
         end
 
         -- Check players
@@ -549,7 +670,8 @@ function Map3D:UpdateBullets()
         end
 
         -- 2. Process the earliest hit
-        if hitType == "wall" then
+        if hitType == "wall" or hitType == "env" then
+            -- 墙体与地面/边界同属环境碰撞, 复用墙体命中的击发效果通知
             local hitPos = {
                 x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * minT,
                 y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * minT,
@@ -560,6 +682,12 @@ function Map3D:UpdateBullets()
             toRemove[#toRemove + 1] = bulletId
         elseif hitType == "player" then
             self:NotifyPlayerHit(bulletId, hitData.userId, hitData.hitPos)
+            bullet.isExpired = true
+            toRemove[#toRemove + 1] = bulletId
+        end
+
+        -- 剩余射程耗尽: 距离模型的正常销毁条件 (子弹已飞满 shootDist)
+        if not bullet.isExpired and bullet.remainingDist <= 0.0001 then
             bullet.isExpired = true
             toRemove[#toRemove + 1] = bulletId
         end
@@ -634,8 +762,15 @@ function Map3D:CheckBulletPlayerCCD(bullet, player)
         return dist <= collisionRadius, 0
     end
 
-    local t = (px * dx + py * dy + pz * dz) / dirLenSq
-    t = math.max(0, math.min(1, t))
+    local tRaw = (px * dx + py * dy + pz * dz) / dirLenSq
+    -- 球心在枪口后方(tRaw<0)时不判定命中:
+    -- 起点位于球内时, 只有目标位于枪口前方才算命中,
+    -- 防止同位置玩家朝任意方向开枪都因 t=0 命中
+    if tRaw < 0 then
+        return false, 0
+    end
+    ---@type number
+    local t = math.min(1, tRaw)
 
     local closestX = bullet.prevPos.x + t * dx
     local closestY = bullet.prevPos.y + t * dy
@@ -747,6 +882,52 @@ function Map3D:CheckBulletWallCCD(bullet)
     return nil
 end
 
+--- 子弹与环境(地面/地图边界)碰撞检测 (CCD)
+--- 检测本帧位移线段是否穿过:
+---   1. 地面平面 y = groundY (防止向下射击子弹钻入地下)
+---   2. 地图边界盒 [0, size] 的六个面 (防止向上/出界射击子弹飞出地图)
+--- 与墙体碰撞一样返回 [0,1] 内的命中比例t, 参与 minT 仲裁
+---@param bullet Map3DBulletType
+---@return number | nil 最近命中比例t(0~1), 未命中返回nil
+function Map3D:CheckBulletEnvCCD(bullet)
+    local dx = bullet.pos.x - bullet.prevPos.x
+    local dy = bullet.pos.y - bullet.prevPos.y
+    local dz = bullet.pos.z - bullet.prevPos.z
+    local ox = bullet.prevPos.x
+    local oy = bullet.prevPos.y
+    local oz = bullet.prevPos.z
+
+    local mapSize = self:GetSize()
+    ---@type number
+    local bestT = 2
+
+    -- 地面平面: 只有向下运动才可能命中
+    if dy < -0.000001 then
+        local t = (self.groundY - oy) / dy
+        if t > 0 and t <= 1 and t < bestT then
+            bestT = t
+        end
+    end
+
+    -- 地图边界: 各轴离开 [0, size] 的方向上的面
+    local function checkAxisExit(o, d, max)
+        if math.abs(d) >= 0.000001 then
+            local t = d > 0 and (max - o) / d or -o / d
+            if t > 0 and t <= 1 and t < bestT then
+                bestT = t
+            end
+        end
+    end
+    checkAxisExit(ox, dx, mapSize.x)
+    checkAxisExit(oy, dy, mapSize.y)
+    checkAxisExit(oz, dz, mapSize.z)
+
+    if bestT <= 1 then
+        return bestT
+    end
+    return nil
+end
+
 -- 通知周围玩家子弹击中墙体/建筑
 ---@param bulletId  string
 ---@param shooterId string
@@ -826,6 +1007,9 @@ function Map3D:FixedUpdate(timeMS)
     for userId, mapPlayer in pairs(self.players) do
         self:PlayerPhysicsMove(mapPlayer)
     end
+
+    -- 玩家间分离碰撞, 防止穿模重叠 (在子弹碰撞检测前, 保证用最新位置判定)
+    self:UpdatePlayerSeparation()
 
     self:UpdateBullets()
 

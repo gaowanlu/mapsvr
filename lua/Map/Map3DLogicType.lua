@@ -46,6 +46,7 @@
 ---@field speedRatio      integer
 ---@field isExpired       boolean
 ---@field collisionRadius number
+---@field remainingDist   number 剩余射程: 每 tick 扣减本 tick 位移, 耗尽即销毁 (距离模型, 保证总位移==shootDist)
 
 ---@class Map3DType
 ---@field MapDbData       Map3DDbDataType
