@@ -1194,7 +1194,7 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
 message ProtoCSReqMap3DPing{ uint64 clientTime=1; }
 message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 message ProtoMap3DBoxData{ int32 x=1; int32 y=2; int32 z=3; int32 w=4; int32 h=5; int32 d=6; uint32 color=7; bool collide=8; }
-message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; }
+message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; int32 centerX=5; int32 centerZ=6; }
 message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; }
 message ProtoCSReqMap3DChat{ string message=1; }
 message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
@@ -1380,11 +1380,13 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                 case Cmd.PROTO_CMD_CS_RES_LOGIN: log("✓ 登录成功"); break;
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_INIT_DATA: {
                     const d = T_Init.decode(msg.protocol);
-                    // 首次收到位置时检测坐标基准：服务器返回绝对坐标(约500000)则建立本地偏移
+                    // 首次收到位置时检测坐标基准：服务器返回绝对坐标(约500000)则建立本地偏移。
+                    // 注意: 玩家可能出生在环状防重叠偏移点上(不等于地图中心), 此处只是临时锚点,
+                    // MAP_DATA 下发地图中心绝对坐标后会重新校准并平移已放置的位置。
                     if (!offsetReady && (Math.abs(d.x) > 10000 || Math.abs(d.z) > 10000)) {
                         coordOffset.x = d.x; coordOffset.z = d.z;
                         offsetReady = true;
-                        log("✓ 坐标校准: 绝对坐标→本地 (" + d.x + "," + d.z + ")→(0,0)");
+                        log("✓ 坐标预校准(出生点锚点): (" + d.x + "," + d.z + ")→(0,0), 等待地图中心精确校准");
                     }
                     const sp = loc(d);
                     selfId = String(d.userId);
@@ -1438,6 +1440,29 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA: {
                     const d = T_MapData.decode(msg.protocol);
+                    // 用服务器下发的地图中心绝对坐标精确校准本地原点。
+                    // INIT_DATA 的锚点是玩家自己的出生点(环状防重叠, 可能偏离中心最多约14单位),
+                    // 这里重新锚定到地图中心, 并按锚点差平移所有已放置的位置(人物/子弹), 保证与服务器坐标一致。
+                    if (Math.abs(d.centerX) > 10000 || Math.abs(d.centerZ) > 10000) {
+                        const dx = d.centerX - coordOffset.x;
+                        const dz = d.centerZ - coordOffset.z;
+                        coordOffset.x = d.centerX; coordOffset.z = d.centerZ;
+                        offsetReady = true;
+                        if (dx !== 0 || dz !== 0) {
+                            const shift = (v) => { v.x -= dx; v.z -= dz; };
+                            shift(localPos); shift(serverPos);
+                            players.forEach(m => {
+                                shift(m.group.position);
+                                shift(m.prevPos);
+                                shift(m.targetPos);
+                            });
+                            bullets.forEach(b => {
+                                if (b.mesh) shift(b.mesh.position);
+                                if (b.points) b.points.forEach(shift);
+                            });
+                            log("✓ 坐标校准(地图中心): (" + d.centerX + "," + d.centerZ + ")→(0,0), 平移已放置位置 (" + (-dx) + "," + (-dz) + ")");
+                        }
+                    }
                     buildMapFromServer(d);
                     break;
                 }

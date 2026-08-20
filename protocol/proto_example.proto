@@ -287,6 +287,9 @@ message ProtoCSMap3DNotifyMapData
   string name=2;
   int32 groundY=3;
   repeated ProtoMap3DBoxData boxes=4;
+  // 地图中心绝对坐标(客户端据此校准本地原点, 玩家环状出生点不等于地图中心)
+  int32 centerX=5;
+  int32 centerZ=6;
 }
 
 // Map3D子弹击中墙体/建筑通知(碰撞点)

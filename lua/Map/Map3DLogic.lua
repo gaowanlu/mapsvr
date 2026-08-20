@@ -152,7 +152,16 @@ function Map3D:GetMapDataPayload()
         }
     end
 
-    return { mapId = self:GetMapId(), name = self.mapName, groundY = math.floor(self.groundY), boxes = boxesPayload }
+    local size = self:GetSize()
+    return {
+        mapId = self:GetMapId(),
+        name = self.mapName,
+        groundY = math.floor(self.groundY),
+        boxes = boxesPayload,
+        -- 地图中心绝对坐标: 玩家可能出生在环状偏移点上, 客户端需要用地图中心校准本地原点
+        centerX = math.floor(size.x / 2),
+        centerZ = math.floor(size.z / 2)
+    }
 end
 
 function Map3D:OnTick()
