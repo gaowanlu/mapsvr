@@ -22,7 +22,7 @@ WORKDIR /mapsvrgo
 RUN make clean && make
 
 WORKDIR /mapsvrgo/thirdparty/avant
-RUN cd external/LuaJIT-2.1.ROLLING \
+RUN cd external/LuaJIT-2.1 \
     && make clean \
     && make -j$(nproc)
 WORKDIR /mapsvrgo/thirdparty/avant

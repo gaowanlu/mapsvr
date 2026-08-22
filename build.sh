@@ -56,7 +56,7 @@ echo "=== Step 3/6: Generate C++ Protobuf code ==="
 cd "$AVANT_DIR/protocol" && make
 
 echo "=== Step 4/6: Compile Avant C++ core ==="
-cd "$AVANT_DIR/external/LuaJIT-2.1.ROLLING"
+cd "$AVANT_DIR/external/LuaJIT-2.1"
 make -j"$JOBS"
 
 cd "$AVANT_DIR"
