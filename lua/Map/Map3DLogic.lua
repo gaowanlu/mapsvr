@@ -10,6 +10,14 @@ local AlgorithmRandom = require("AlgorithmRandomLogic")
 -- 下发给客户端的坐标缩放: 本地坐标×1000 转为整数
 local MAP_DATA_SCALE = 1000
 
+-- 下发给客户端的速度缩放: 本地速度(px/s)×1000 转为整数
+-- (直接 math.floor 原始速度会把 +0.4→0 / -0.4→-1, 正负量化不对称; 放大后误差 ≤0.001 px/s)
+local VEL_DATA_SCALE = 1000
+
+-- 玩家命中中心高度偏移: 身体中点相对脚底 pos.y 的高度,
+-- 命中判定与八叉树查询扩展必须共用同一常量, 防止两处漂移导致漏判
+local PLAYER_HIT_CENTER_OFFSET = 1.0
+
 -- 构造新的3DMap对象
 ---@param mapId integer 地图ID
 ---@return Map3D 新的地图对象
@@ -38,6 +46,8 @@ function Map3D.new(mapId)
     self.map3DOctree = Map3DOctree.new(0, 0, 0, self:GetSize().x, self:GetSize().y, self:GetSize().z, 0)
 
     self.nextBulletIdSeq = 0
+    self.bulletCount = 0
+    self.maxBodyRadius = 0
 
     -- 加载地图墙体/建筑配置 (服务器权威碰撞数据)
     local size = self:GetSize()
@@ -85,6 +95,19 @@ end
 -- 获取最大射击距离（单位：px）
 ---@return integer
 function Map3D:GetMaxShootDist()
+    return 200
+end
+
+-- 获取开火冷却（单位：ms）: 同一玩家两次射击的最小间隔,
+-- 防止客户端高频刷射击消息打满单线程 Other VM (每发子弹 = 广播 + 每 tick 全量 CCD)
+---@return integer
+function Map3D:GetFireCooldownMS()
+    return 150
+end
+
+-- 获取单地图存活子弹上限: 达到后拒绝新射击 (兜底, 防止 tick 成本随子弹数无界增长)
+---@return integer
+function Map3D:GetMaxBulletsPerMap()
     return 200
 end
 
@@ -243,11 +266,13 @@ function Map3D:PlayerJoinMap(userId)
         -- 匹配客户端人物模型宽度
         bodyRadius = 1.0,
         -- 记录地面Y，用于服务器的重力模拟
-        groundY = spawnPoint.y,
-        octree = nil
+        groundY = spawnPoint.y
     }
 
     self.players[userId] = newMap3DPlayer
+    if newMap3DPlayer.bodyRadius > self.maxBodyRadius then
+        self.maxBodyRadius = newMap3DPlayer.bodyRadius
+    end
     Map3DOctree.OcInsert(self.map3DOctree, newMap3DPlayer)
 
     return true
@@ -477,16 +502,22 @@ function Map3D:UpdatePlayerSeparation()
 end
 
 -- 玩家射击
----@param shooterId  string 发射子弹的玩家的userId
----@param dirX       number 子弹方向向量X分量
----@param dirY       number 子弹方向向量Y分量
----@param dirZ       number 子弹方向向量Z分量
----@param shootDist  number 射击距离
----@param clientTime string 客户端射击时间
----@return string | nil 返回子弹ID
-function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
+---@param shooterId string 发射子弹的玩家的userId
+---@param dirX      number 子弹方向向量X分量
+---@param dirY      number 子弹方向向量Y分量
+---@param dirZ      number 子弹方向向量Z分量
+---@param shootDist number 射击距离
+---@return string | nil 返回子弹ID (被限频/超上限拒绝时返回nil)
+function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist)
     local shooter = self:GetMapPlayerByUserId(shooterId)
     if shooter == nil then return nil end
+
+    -- 开火限频: 同一玩家两次射击至少间隔 GetFireCooldownMS() ms,
+    -- 防止恶意客户端按网络速率刷射击消息打满单线程 Other VM (与聊天限频同一模式)
+    local now = TimeMgr.GetMS()
+    if shooter.lastShootMS ~= nil and now - shooter.lastShootMS < self:GetFireCooldownMS() then
+        return nil
+    end
 
     if shootDist <= 0 or shootDist > self:GetMaxShootDist() then
         return nil
@@ -501,9 +532,13 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
     dirY = dirY / len
     dirZ = dirZ / len
 
+    -- 子弹上限: 地图存活子弹数达到 GetMaxBulletsPerMap() 时拒绝新射击
+    if self.bulletCount >= self:GetMaxBulletsPerMap() then
+        return nil
+    end
+
     self.nextBulletIdSeq = self.nextBulletIdSeq + 1
     local bulletId = tostring(self.nextBulletIdSeq)
-    local now = TimeMgr.GetMS()
 
     -- 起点加上眼睛高度
     local muzzleOffset = shooter.bodyRadius
@@ -534,6 +569,8 @@ function Map3D:PlayerShoot(shooterId, dirX, dirY, dirZ, shootDist, clientTime)
     }
 
     self.bullets[bulletId] = newBullet
+    self.bulletCount = self.bulletCount + 1
+    shooter.lastShootMS = now
 
     -- 广播给周围玩家
     local MsgHandler = require("MsgHandlerLogic")
@@ -661,14 +698,38 @@ function Map3D:UpdateBullets()
             hitType = "env"
         end
 
-        -- Check players
-        for userId, player in pairs(self.players) do
-            if userId ~= bullet.shooterId then
+        -- Check players (八叉树范围查询, 把 O(子弹×全图玩家) 降为 O(子弹×附近玩家)):
+        -- 命中中心 C = player.pos + (0, PLAYER_HIT_CENTER_OFFSET, 0), 若线段在 Q* 处命中 C,
+        -- 则 |Q*-player.pos| ≤ collisionRadius + bodyRadius + PLAYER_HIT_CENTER_OFFSET,
+        -- 故把子弹线段AABB按 R = collisionRadius + maxBodyRadius + PLAYER_HIT_CENTER_OFFSET 扩展后,
+        -- 所有可能命中的玩家 pos 必落在其中 (maxBodyRadius ≥ 任一玩家的 bodyRadius)
+        local expand = bullet.collisionRadius + self.maxBodyRadius + PLAYER_HIT_CENTER_OFFSET
+        local rangeMinX = math.min(bullet.prevPos.x, bullet.pos.x) - expand
+        local rangeMinY = math.min(bullet.prevPos.y, bullet.pos.y) - expand
+        local rangeMinZ = math.min(bullet.prevPos.z, bullet.pos.z) - expand
+        local rangeMaxX = math.max(bullet.prevPos.x, bullet.pos.x) + expand
+        local rangeMaxY = math.max(bullet.prevPos.y, bullet.pos.y) + expand
+        local rangeMaxZ = math.max(bullet.prevPos.z, bullet.pos.z) + expand
+        local candidates = {}
+        local seen = {}
+        Map3DOctree.OcQuery(self.map3DOctree, {
+            x = rangeMinX,
+            y = rangeMinY,
+            z = rangeMinZ,
+            w = rangeMaxX - rangeMinX,
+            h = rangeMaxY - rangeMinY,
+            d = rangeMaxZ - rangeMinZ
+        }, candidates, seen
+        )
+
+        for _, o in ipairs(candidates) do
+            local player = self.players[o.userId]
+            if player ~= nil and o.userId ~= bullet.shooterId then
                 local hit, t = self:CheckBulletPlayerCCD(bullet, player)
                 if hit and t < minT then
                     minT = t
                     hitType = "player"
-                    hitData.userId = userId
+                    hitData.userId = o.userId
                     hitData.hitPos = {
                         x = bullet.prevPos.x + (bullet.pos.x - bullet.prevPos.x) * t,
                         y = bullet.prevPos.y + (bullet.pos.y - bullet.prevPos.y) * t,
@@ -746,8 +807,12 @@ function Map3D:UpdateBullets()
         ::continue::
     end
 
+    -- 每颗子弹本 tick 至多入队一次 (各分支均 goto continue / isExpired 守卫), 直接按数量扣减
     for _, bulletId in ipairs(toRemove) do
         self.bullets[bulletId] = nil
+    end
+    if #toRemove > 0 then
+        self.bulletCount = self.bulletCount - #toRemove
     end
 end
 
@@ -757,8 +822,8 @@ function Map3D:CheckBulletPlayerCCD(bullet, player)
     local dy = bullet.pos.y - bullet.prevPos.y
     local dz = bullet.pos.z - bullet.prevPos.z
 
-    -- 玩家碰撞中心点在身体中部
-    local playerCenterY = player.pos.y + 1.0
+    -- 玩家碰撞中心点在身体中部 (与八叉树查询扩展共用 PLAYER_HIT_CENTER_OFFSET)
+    local playerCenterY = player.pos.y + PLAYER_HIT_CENTER_OFFSET
 
     local px = player.pos.x - bullet.prevPos.x
     local py = playerCenterY - bullet.prevPos.y
@@ -1045,9 +1110,10 @@ function Map3D:FixedUpdate(timeMS)
                 x = math.floor(pl.pos.x),
                 y = math.floor(pl.pos.y),
                 z = math.floor(pl.pos.z),
-                vX = math.floor(pl.v.x),
-                vY = math.floor(pl.v.y),
-                vZ = math.floor(pl.v.z),
+                -- 速度×VEL_DATA_SCALE(1000)后取整: 原始速度多为小数, 直接 floor 正负量化不对称
+                vX = math.floor(pl.v.x * VEL_DATA_SCALE),
+                vY = math.floor(pl.v.y * VEL_DATA_SCALE),
+                vZ = math.floor(pl.v.z * VEL_DATA_SCALE),
                 lastSeq = pl.lastSeq,
                 lastClientTime = pl.lastClientTime
             }

@@ -151,6 +151,7 @@ message ProtoMap3DPlayerPayload
     int32 x=2;
     int32 y=3;
     int32 z=4;
+    // 速度(px/s)×1000: 如 7 px/s → 7000, 客户端还原需 /1000
     int32 vX=5;
     int32 vY=6;
     int32 vZ=7;

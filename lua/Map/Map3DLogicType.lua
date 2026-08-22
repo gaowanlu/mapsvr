@@ -34,6 +34,7 @@
 ---@field bodyRadius     number            角色碰撞半径
 ---@field map3DOctree    Map3DOctree | nil 所在地图八叉树节点
 ---@field lastChatMS     integer | nil     上一次发送聊天消息的时间(ms), 用于限频
+---@field lastShootMS    integer | nil     上一次射击的时间(ms), 用于开火限频
 
 ---@class Map3DBulletType
 ---@field bulletId        string
@@ -46,18 +47,20 @@
 ---@field speedRatio      integer
 ---@field isExpired       boolean
 ---@field collisionRadius number
----@field remainingDist   number 剩余射程: 每 tick 扣减本 tick 位移, 耗尽即销毁 (距离模型, 保证总位移==shootDist)
+---@field remainingDist   number  剩余射程: 每 tick 扣减本 tick 位移, 耗尽即销毁 (距离模型, 保证总位移==shootDist)
 
 ---@class Map3DType
 ---@field MapDbData       Map3DDbDataType
----@field players         table<string, Map3DPlayerType> userId到玩家对象的映射
----@field map3DOctree     Map3DOctree                    八叉树
+---@field players         table<string, Map3DPlayerType>      userId到玩家对象的映射
+---@field map3DOctree     Map3DOctree                         八叉树
 ---@field bullets         table<string, Map3DBulletType>
----@field nextBulletIdSeq integer                        下一发子弹IDSeq
----@field groundY         number                         地面绝对Y
----@field mapName         string                         地图名称
+---@field nextBulletIdSeq integer                             下一发子弹IDSeq
+---@field groundY         number                              地面绝对Y
+---@field mapName         string                              地图名称
 ---@field collideBoxes    table<integer, Map3DCollideBoxType> 参与玩家/子弹碰撞的盒(绝对坐标)
----@field renderBoxes     table<integer, Map3DBoxConfig> 下发给客户端渲染的盒(地图本地坐标)
+---@field renderBoxes     table<integer, Map3DBoxConfig>      下发给客户端渲染的盒(地图本地坐标)
+---@field maxBodyRadius   number                              地图内玩家的最大身体半径(子弹命中八叉树查询扩展用)
+---@field bulletCount     integer                             当前存活子弹数(与 self.bullets 同步维护)
 
 ---@class Map3DCollideBoxType
 ---@field x  number 中心X(绝对坐标)

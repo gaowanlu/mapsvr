@@ -164,7 +164,7 @@ function PlayerCmptMap3D:MapShootReq(message)
     end
 
     currMap:PlayerShoot(
-        self:GetPlayer():GetUserId(), message.dirX, message.dirY, message.dirZ, message.shootDist, message.clientTime
+        self:GetPlayer():GetUserId(), message.dirX, message.dirY, message.dirZ, message.shootDist
     )
 end
 
