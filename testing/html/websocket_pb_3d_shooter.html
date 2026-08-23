@@ -1468,6 +1468,9 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_BULLET: {
                     const b = T_Bullet.decode(msg.protocol);
+                    // 自己的子弹: 服务器从眼睛前1m(身体半径)处生成, 第一人称下正好在准星/射线起点,
+                    // 渲染子弹球会在屏幕中心留一个残留黄球; 自己的射击已有曳光线+命中特效, 不再画球
+                    if (String(b.shooterId) === selfId) break;
                     const lb = loc(b);
                     b.x = lb.x; b.y = lb.y; b.z = lb.z;
                     handleBullet(b); break;
@@ -1479,6 +1482,7 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                     // 权威碰撞点在服务器计算; 本机射击已有本地即时特效,
                     // 服务器碰撞点用于其他玩家视角的墙体火花
                     if (String(w.shooterId) !== selfId) createWallImpact(w.x, w.y, w.z);
+                    cleanupBullet(w.bulletId); // 服务器已判灭, 立即移除子弹球, 避免残留
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_HIT_PLAYER: {
@@ -1486,6 +1490,7 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                     if (offsetReady) { h.targetX -= coordOffset.x; h.targetZ -= coordOffset.z; }
                     killfeed(`你命中 ${h.targetId} → -${h.damage}HP`);
                     createHitEffect(h.targetX, h.targetY, h.targetZ);
+                    cleanupBullet(h.bulletId); // 服务器已判灭, 立即移除子弹球, 避免残留
                     break;
                 }
                 case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT: {
@@ -1626,6 +1631,10 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(innerWidth, innerHeight);
         renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
+        // r155 起 three 默认切换为物理光照(同样数值会暗约 π 倍, 场景发闷发黑), 显式恢复旧版强度语义
+        renderer.useLegacyLights = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
         renderer.domElement.style.touchAction = "none";
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1644,6 +1653,16 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
         scene.add(sunTarget);
         sun.target = sunTarget;
         scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+        // 冷色轮廓补光(不投影): 与暖色主光形成双色温, 消除单光源下的死黑角落
+        const moon = new THREE.DirectionalLight(0x5f7fb8, 0.35);
+        moon.position.set(-80, GROUND_Y + 160, -60);
+        scene.add(moon);
+
+        // 跟随视角的暖色"提灯": 夜间照亮近处墙体/建筑, 增强空间层次(进入地图后生效)
+        const torch = new THREE.PointLight(0xffc98a, 1.6, 30, 2);
+        torch.visible = false;
+        scene.add(torch);
 
         const groundTex = makeGroundTexture();
         const ground = new THREE.Mesh(
@@ -1743,11 +1762,6 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
         sight.position.set(0, 0.08, -0.35); viewModel.add(sight);
         const muzzle = new THREE.Object3D();
         muzzle.position.set(0, 0.02, -0.9); viewModel.add(muzzle);
-
-        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffdd66, transparent: true, opacity: 0 });
-        const flash = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), flashMat);
-        flash.position.copy(muzzle.position); viewModel.add(flash);
-        let flashTime = 0;
         viewModel.position.set(0.18, -0.18, 0);
 
         function createPlayerMesh(isSelf, id) {
@@ -2072,9 +2086,6 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
             if (now - lastShootTime < SHOOT_COOLDOWN) return;
             lastShootTime = now;
             viewModel.position.z = 0.06;
-            flashTime = 0.05;
-            flash.material.opacity = 1;
-            flash.scale.setScalar(1 + Math.random() * 0.6);
 
             // 准星后坐力反馈
             crosshairEl.classList.remove("kick");
@@ -2276,10 +2287,11 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                 camera.rotation.order = "YXZ";
                 camera.rotation.y = yaw;
                 camera.rotation.x = pitch;
+                torch.position.copy(camera.position);
             }
+            torch.visible = !!selfId;
 
             viewModel.position.z += (0 - viewModel.position.z) * Math.min(1, dt * 12);
-            if (flashTime > 0) { flashTime -= dt; if (flashTime <= 0) { flash.material.opacity = 0; } }
             if (firing && selfId && Date.now() - lastShootTime >= SHOOT_COOLDOWN) shoot();
 
             players.forEach((p, id) => {
