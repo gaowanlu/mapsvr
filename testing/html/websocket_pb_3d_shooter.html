@@ -620,6 +620,33 @@
             transform: translate(-50%, 8px);
         }
 
+        /* ---------- 床交互提示 ---------- */
+        #bedprompt {
+            position: fixed;
+            bottom: 64px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(7, 10, 18, .78);
+            border: 1px solid rgba(111, 233, 176, .4);
+            border-radius: 999px;
+            padding: 8px 18px;
+            font: 600 12px/1 var(--sans);
+            letter-spacing: .08em;
+            color: var(--signal);
+            z-index: 56;
+            pointer-events: none;
+            animation: pulse 1.6s ease-in-out infinite;
+        }
+
+        #bedprompt b {
+            font-family: var(--mono);
+            background: rgba(111, 233, 176, .18);
+            border: 1px solid rgba(111, 233, 176, .5);
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin: 0 3px;
+        }
+
         /* ---------- 小地图 ---------- */
         #minimap {
             position: fixed;
@@ -978,6 +1005,16 @@
             font-size: 10px;
         }
 
+        #btnBed {
+            right: calc(120px + env(safe-area-inset-right, 0px));
+            bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+            width: 58px;
+            height: 58px;
+            border-color: rgba(111, 233, 176, .5);
+            color: var(--signal);
+            font-size: 10px;
+        }
+
         #btnCrouch.active {
             background: rgba(255, 200, 87, .3);
             border-color: var(--amber);
@@ -1108,7 +1145,9 @@
     </div>
 
     <canvas id="minimap" width="316" height="316"></canvas>
-    <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · T 聊天 · ESC 解锁</div>
+    <div id="hint">WASD 移动 · 空格 跳跃 · 鼠标 瞄准 · 点击 射击 · T 聊天 · E 上床/起床 · ESC 解锁</div>
+    <!-- 床交互提示 (靠近空床时显示) -->
+    <div id="bedprompt" class="hidden">按 <b>E</b> 上床睡觉</div>
 
     <!-- 房间文字聊天 (进入地图后显示) -->
     <div id="chat" class="hidden">
@@ -1126,6 +1165,7 @@
         <button id="btnFire">FIRE</button>
         <button id="btnJump">JUMP</button>
         <button id="btnCrouch">CROUCH</button>
+        <button id="btnBed">BED</button>
     </div>
 
     <!-- 进入遮罩 -->
@@ -1170,6 +1210,7 @@ enum ProtoCmd{
     PROTO_CMD_CS_MAP3D_NOTIFY_PLAYER_HURT = 2025;
     PROTO_CMD_CS_MAP3D_NOTIFY_MAP_DATA = 2026; PROTO_CMD_CS_MAP3D_NOTIFY_BULLET_WALL_HIT = 2027;
     PROTO_CMD_CS_REQ_MAP3D_CHAT = 2028; PROTO_CMD_CS_MAP3D_NOTIFY_CHAT = 2029;
+    PROTO_CMD_CS_REQ_MAP3D_SLEEP = 2030; PROTO_CMD_CS_MAP3D_NOTIFY_SLEEP = 2031;
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000; PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_REQ = 3001;
     PROTO_CMD_DBSVRGO_SELECT_DBUSERRECORD_RES = 3002; PROTO_CMD_CS_REQ_CREATE_USER = 3003;
     PROTO_CMD_CS_RES_CREATE_USER = 3004; PROTO_CMD_DBSVRGO_INSERT_DBUSERRECORD_REQ = 3005;
@@ -1194,7 +1235,10 @@ message ProtoCSMap3DNotifyPlayerHurt{ string targetId=1; int32 hp=2; int32 maxHp
 message ProtoCSReqMap3DPing{ uint64 clientTime=1; }
 message ProtoCSResMap3DPong{ uint64 clientTime=1; uint64 serverTime=2; }
 message ProtoMap3DBoxData{ int32 x=1; int32 y=2; int32 z=3; int32 w=4; int32 h=5; int32 d=6; uint32 color=7; bool collide=8; }
-message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; int32 centerX=5; int32 centerZ=6; }
+message ProtoMap3DBedData{ string bedId=1; int32 x=2; int32 y=3; int32 z=4; int32 w=5; int32 h=6; int32 d=7; int32 rotY=8; uint32 color=9; }
+message ProtoCSMap3DNotifyMapData{ uint32 mapId=1; string name=2; int32 groundY=3; repeated ProtoMap3DBoxData boxes=4; int32 centerX=5; int32 centerZ=6; repeated ProtoMap3DBedData beds=7; }
+message ProtoCSReqMap3DSleep{ string bedId=1; bool sleep=2; }
+message ProtoCSMap3DNotifySleep{ string bedId=1; string userId=2; bool sleeping=3; int32 x=4; int32 y=5; int32 z=6; }
 message ProtoCSMap3DNotifyBulletWallHit{ string bulletId=1; string shooterId=2; int32 x=3; int32 y=4; int32 z=5; }
 message ProtoCSReqMap3DChat{ string message=1; }
 message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
@@ -1222,6 +1266,8 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
         const T_WallHit = root.lookupType("avant.ProtoCSMap3DNotifyBulletWallHit");
         const T_Chat = root.lookupType("avant.ProtoCSReqMap3DChat");
         const T_ChatN = root.lookupType("avant.ProtoCSMap3DNotifyChat");
+        const T_Sleep = root.lookupType("avant.ProtoCSReqMap3DSleep");
+        const T_SleepN = root.lookupType("avant.ProtoCSMap3DNotifySleep");
 
         const SHOOT_DIST = 200;
         let GROUND_Y = 500000;
@@ -1241,6 +1287,12 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
         let lastSeq = 0;
         let kills = 0, deaths = 0;
         let myHp = 100, myMaxHp = 100;
+
+        // ---- 床系统 ----
+        const beds = new Map();          // bedId -> {x, z, w, d, rotY, color, sleeper, mesh, group}
+        let selfSleeping = false;        // 本人是否在睡觉
+        let selfSleepBedId = null;       // 本人睡的床ID
+        let nearBedId = null;            // 当前最近可交互床ID (用于 E 键/提示)
 
         const logEl = document.getElementById("log");
         function log(...a) {
@@ -1287,7 +1339,7 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
 
         function inUi(el) {
             return !!(el && el.closest && el.closest(
-                '#console, #telem, #stats, #killfeed, #hint, #hpwrap, #authority, #btnFire, #btnJump, #btnCrouch, #blocker, #chat'));
+                '#console, #telem, #stats, #killfeed, #hint, #hpwrap, #authority, #btnFire, #btnJump, #btnCrouch, #btnBed, #bedprompt, #blocker, #chat'));
         }
 
         if (isTouch) {
@@ -1516,6 +1568,29 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                     addChatLine(String(c.senderId), String(c.message));
                     break;
                 }
+                case Cmd.PROTO_CMD_CS_MAP3D_NOTIFY_SLEEP: {
+                    const s = T_SleepN.decode(msg.protocol);
+                    const bedId = String(s.bedId), uid = String(s.userId);
+                    // 床占用状态
+                    setBedSleeper(bedId, s.sleeping ? uid : null);
+                    if (uid === selfId) {
+                        // 本人睡觉状态: 冻结本地输入, 位置锁定在床上
+                        selfSleeping = s.sleeping;
+                        selfSleepBedId = s.sleeping ? bedId : null;
+                        if (s.sleeping) {
+                            const p = loc({ x: s.x, y: s.y, z: s.z });
+                            localPos.set(p.x, p.y, p.z);
+                            serverPos.set(p.x, p.y, p.z);
+                            velY.v = 0; onGround = true;
+                            viewModel.visible = false;   // 隐藏枪
+                            updateSleepUI(true);
+                        } else {
+                            viewModel.visible = true;
+                            updateSleepUI(false);
+                        }
+                    }
+                    break;
+                }
                 case Cmd.PROTO_CMD_CS_RES_MAP3D_PONG: {
                     try {
                         const o = T_Pong.toObject(T_Pong.decode(msg.protocol), { longs: Number });
@@ -1720,6 +1795,7 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
             mapMeshes = [];
             obstacles.length = 0;
             obstacleMeshes.length = 0;
+            clearBeds();
 
             mapName = data.name;
             if (data.groundY) {
@@ -1735,7 +1811,74 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                     b.w / MAP_DATA_SCALE, b.h / MAP_DATA_SCALE, b.d / MAP_DATA_SCALE,
                     b.color, b.collide);
             }
-            log("✓ 地图配置已下发: " + mapName + " 盒数=" + data.boxes.length + " (地面Y=" + GROUND_Y + ")");
+
+            // 床 (可上床睡觉, 服务器权威占用)
+            if (data.beds) {
+                for (const bd of data.beds) buildBed(bd);
+            }
+            log("✓ 地图配置已下发: " + mapName + " 盒数=" + data.boxes.length +
+                " 床数=" + (data.beds ? data.beds.length : 0) + " (地面Y=" + GROUND_Y + ")");
+        }
+
+        /* ---------------- 床渲染 + 交互 ---------------- */
+        function clearBeds() {
+            beds.forEach(bd => { if (bd.group) scene.remove(bd.group); });
+            beds.clear();
+        }
+
+        // 建一张床的网格 (床架 + 床垫 + 枕头), 不参与碰撞
+        function buildBed(bd) {
+            const S = MAP_DATA_SCALE;
+            const w = bd.w / S, d = bd.d / S, h = bd.h / S;
+            const x = bd.x / S, z = bd.z / S;
+            const rotY = (bd.rotY || 0) / 1000;
+
+            const group = new THREE.Group();
+            group.position.set(x, GROUND_Y, z);
+            group.rotation.y = rotY;
+
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.8 });
+            const mattressMat = new THREE.MeshStandardMaterial({ color: bd.color || 0x7a5c3e, roughness: 0.9 });
+            const pillowMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.95 });
+
+            // 床架 (底座)
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), frameMat);
+            frame.position.y = 0.15; frame.castShadow = true; frame.receiveShadow = true;
+            group.add(frame);
+            // 床垫 (床面在 y≈0.5, 与服务器 BED_SURFACE_Y 一致)
+            const mattress = new THREE.Mesh(new THREE.BoxGeometry(w * 0.96, 0.22, d * 0.96), mattressMat);
+            mattress.position.y = 0.42; mattress.castShadow = true;
+            group.add(mattress);
+            // 枕头 (床头一侧; rotY 决定朝向)
+            const pillow = new THREE.Mesh(new THREE.BoxGeometry(w * 0.7, 0.14, d * 0.22), pillowMat);
+            pillow.position.set(0, 0.56, -d * 0.32); pillow.castShadow = true;
+            group.add(pillow);
+            // 床头板
+            const headboard = new THREE.Mesh(new THREE.BoxGeometry(w, 0.7, 0.12), frameMat);
+            headboard.position.set(0, 0.55, -d / 2 + 0.06); headboard.castShadow = true;
+            group.add(headboard);
+
+            scene.add(group);
+            mapMeshes.push(group);   // 随地图重建一起清理
+
+            beds.set(String(bd.bedId), {
+                id: String(bd.bedId), x, z, w, d, rotY,
+                color: bd.color, sleeper: null, group,
+                surfaceY: GROUND_Y + 0.5
+            });
+        }
+
+        // 床占用状态更新 (sleeper: userId 或 null)
+        function setBedSleeper(bedId, userId) {
+            const bd = beds.get(String(bedId));
+            if (!bd) return;
+            bd.sleeper = userId;
+            // 占用时床垫高亮 (被占用=琥珀色, 空床=原色)
+            const mattress = bd.group.children[1];
+            if (mattress) {
+                mattress.material.color.setHex(userId ? 0xc8862a : (bd.color || 0x7a5c3e));
+                mattress.material.emissive.setHex(userId ? 0x3a2408 : 0x000000);
+            }
         }
 
         const gridHelper = new THREE.GridHelper(400, 80, 0x1a3a5c, 0x0f243f);
@@ -1935,7 +2078,71 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
             key[e.key.toLowerCase()] = false;
         });
 
-        function tryJump() { if (onGround) { velY.v = JUMP_SPEED; onGround = false; } }
+        function tryJump() {
+            if (selfSleeping) return;        // 睡觉中不能跳
+            if (onGround) { velY.v = JUMP_SPEED; onGround = false; }
+        }
+
+        /* ------- 床交互: E 键 上床/下床 ------- */
+        // 找最近的空床 (XZ 距离), 返回 bedId 或 null
+        function nearestFreeBed() {
+            let best = null, bestD = 3.5 * 3.5;   // 交互半径 3.5 (与服务器一致)
+            beds.forEach(bd => {
+                if (bd.sleeper) return;
+                const dx = localPos.x - bd.x, dz = localPos.z - bd.z;
+                const d2 = dx * dx + dz * dz;
+                if (d2 < bestD) { bestD = d2; best = bd.id; }
+            });
+            return best;
+        }
+
+        function sendSleep(bedId, sleep) {
+            if (!ws || ws.readyState !== 1) return;
+            sendInner(T_Sleep, { bedId, sleep }, Cmd.PROTO_CMD_CS_REQ_MAP3D_SLEEP);
+        }
+
+        function onInteract() {
+            if (!selfId) return;
+            if (selfSleeping) {
+                sendSleep(selfSleepBedId, false);   // 下床
+                return;
+            }
+            const bedId = nearestFreeBed();
+            if (bedId) sendSleep(bedId, true);      // 上床
+        }
+
+        // E 键交互 (PC); 触屏用屏幕按钮
+        addEventListener("keydown", e => {
+            if (e.target && e.target.tagName === "INPUT") return;
+            if ((e.key === "e" || e.key === "E") && !e.repeat) {
+                e.preventDefault();
+                onInteract();
+            }
+        });
+
+        const bedpromptEl = document.getElementById("bedprompt");
+        function updateSleepUI(sleeping) {
+            if (sleeping) {
+                bedpromptEl.innerHTML = "睡觉中 · 按 <b>E</b> 起床";
+                bedpromptEl.classList.remove("hidden");
+                hintEl.classList.add("hide");
+            } else {
+                bedpromptEl.classList.add("hidden");
+                hintEl.classList.remove("hide");
+            }
+        }
+        // 每帧: 靠近空床时显示"按E上床"提示 (睡觉中不显示)
+        function updateBedPrompt() {
+            if (selfSleeping || !selfId) { bedpromptEl.classList.add("hidden"); return; }
+            const bedId = nearestFreeBed();
+            nearBedId = bedId;
+            if (bedId) {
+                bedpromptEl.innerHTML = "按 <b>E</b> 上床睡觉";
+                bedpromptEl.classList.remove("hidden");
+            } else {
+                bedpromptEl.classList.add("hidden");
+            }
+        }
 
         /* ------- 触屏: 左摇杆 / 右拖拽瞄准 / 开火·跳跃·下蹲 ------- */
         if (isTouch) {
@@ -2008,6 +2215,12 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
                 crouch.on = !crouch.on;
                 btnCrouchEl.classList.toggle("active", crouch.on);
             }, { passive: false });
+
+            // 床交互按钮 (触屏): 上床/下床
+            document.getElementById("btnBed").addEventListener("touchstart", e => {
+                e.preventDefault(); e.stopPropagation();
+                onInteract();
+            }, { passive: false });
         }
 
         // AABB 碰撞解析（最小穿透轴）：每次把重叠按 X/Z 中穿透较浅的一轴完全移出，
@@ -2040,6 +2253,7 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
 
         setInterval(() => {
             if (!selfId) return;
+            if (selfSleeping) return;   // 睡觉中不发送移动输入 (服务器已冻结)
             const f = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
             const r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
             const mv = computeMove(f, r);
@@ -2258,38 +2472,50 @@ message ProtoCSMap3DNotifyChat{ string senderId=1; string message=2; }
             const dt = Math.min(clock.getDelta(), 0.05);
 
             if (selfId) {
-                _f.set(Math.sin(yaw), 0, Math.cos(yaw));
-                _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
-                const mv = computeMove(_f, _r);
-                const s = mv.mag * MOVE_SPEED * dt;
+                if (selfSleeping) {
+                    // 睡觉中: 位置锁定在床上, 忽略移动/重力/服务器校正
+                    camera.position.set(localPos.x, localPos.y + 1.2, localPos.z);
+                    camera.rotation.order = "YXZ";
+                    camera.rotation.y = yaw;
+                    camera.rotation.x = -0.35;   // 略微后仰, 躺在床上视角
+                    torch.position.copy(camera.position);
+                } else {
+                    _f.set(Math.sin(yaw), 0, Math.cos(yaw));
+                    _r.set(Math.cos(yaw), 0, -Math.sin(yaw));
+                    const mv = computeMove(_f, _r);
+                    const s = mv.mag * MOVE_SPEED * dt;
 
-                // 移动 + 最小穿透碰撞解析：贴墙滑动、不可穿墙
-                localPos.x += mv.dx * s;
-                localPos.z += mv.dz * s;
-                collide(localPos);
+                    // 移动 + 最小穿透碰撞解析：贴墙滑动、不可穿墙
+                    localPos.x += mv.dx * s;
+                    localPos.z += mv.dz * s;
+                    collide(localPos);
 
-                // 重力
-                velY.v -= GRAVITY * dt;
-                localPos.y += velY.v * dt;
-                if (localPos.y <= GROUND_Y) {
-                    localPos.y = GROUND_Y;
-                    velY.v = 0;
-                    onGround = true;
+                    // 重力
+                    velY.v -= GRAVITY * dt;
+                    localPos.y += velY.v * dt;
+                    if (localPos.y <= GROUND_Y) {
+                        localPos.y = GROUND_Y;
+                        velY.v = 0;
+                        onGround = true;
+                    }
+
+                    // 服务器权威校正：限制单次幅度 + 碰撞感知，避免被拉进墙体/建筑
+                    const corr = err => Math.max(-2, Math.min(2, err)) * Math.min(1, dt * 4);
+                    localPos.x += corr(serverPos.x - localPos.x);
+                    localPos.z += corr(serverPos.z - localPos.z);
+                    collide(localPos);
+
+                    camera.position.set(localPos.x, localPos.y + EYE_HEIGHT, localPos.z);
+                    camera.rotation.order = "YXZ";
+                    camera.rotation.y = yaw;
+                    camera.rotation.x = pitch;
+                    torch.position.copy(camera.position);
                 }
-
-                // 服务器权威校正：限制单次幅度 + 碰撞感知，避免被拉进墙体/建筑
-                const corr = err => Math.max(-2, Math.min(2, err)) * Math.min(1, dt * 4);
-                localPos.x += corr(serverPos.x - localPos.x);
-                localPos.z += corr(serverPos.z - localPos.z);
-                collide(localPos);
-
-                camera.position.set(localPos.x, localPos.y + EYE_HEIGHT, localPos.z);
-                camera.rotation.order = "YXZ";
-                camera.rotation.y = yaw;
-                camera.rotation.x = pitch;
-                torch.position.copy(camera.position);
             }
-            torch.visible = !!selfId;
+            torch.visible = !!selfId && !selfSleeping;
+
+            // 床交互提示 (靠近空床显示)
+            updateBedPrompt();
 
             viewModel.position.z += (0 - viewModel.position.z) * Math.min(1, dt * 12);
             if (firing && selfId && Date.now() - lastShootTime >= SHOOT_COOLDOWN) shoot();

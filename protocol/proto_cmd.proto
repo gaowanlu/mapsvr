@@ -99,6 +99,10 @@ enum ProtoCmd
     PROTO_CMD_CS_REQ_MAP3D_CHAT = 2028;
     // Map3D房间文字聊天广播(服务器→房间内所有玩家)
     PROTO_CMD_CS_MAP3D_NOTIFY_CHAT = 2029;
+    // Map3D上下床请求(sleep=1上床睡觉, sleep=0下床起床; 服务器权威校验占用/距离)
+    PROTO_CMD_CS_REQ_MAP3D_SLEEP = 2030;
+    // Map3D上下床状态广播(服务器→房间内所有玩家, 含本人)
+    PROTO_CMD_CS_MAP3D_NOTIFY_SLEEP = 2031;
 
     // 写dbuserreocord表数据
     PROTO_CMD_DBSVRGO_WRITE_DBUSERRECORD_REQ = 3000;

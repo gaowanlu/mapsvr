@@ -3,6 +3,7 @@ local Map3D = require("Map3DData")
 local Log = require("Log")
 local TimeMgr = require("TimeMgrLogic")
 local Map3DOctree = require("Map3DOctreeLogic")
+local Map3DLogicBed = require("Map3DLogicBed")
 local Map3DMapConfig = require("Map3DMapConfig")
 local NumericBigInt = require("NumericBigIntLogic")
 local AlgorithmRandom = require("AlgorithmRandomLogic")
@@ -88,6 +89,9 @@ function Map3D.new(mapId)
     else
         Log:Error("Map3D[%d] no map config found, map has no wall/building collision", mapId)
     end
+
+    -- 创建地图内的床 (服务器权威占用, 可上床睡觉)
+    Map3DLogicBed.InitBeds(self)
 
     return self
 end
@@ -183,7 +187,8 @@ function Map3D:GetMapDataPayload()
         boxes = boxesPayload,
         -- 地图中心绝对坐标: 玩家可能出生在环状偏移点上, 客户端需要用地图中心校准本地原点
         centerX = math.floor(size.x / 2),
-        centerZ = math.floor(size.z / 2)
+        centerZ = math.floor(size.z / 2),
+        beds = Map3DLogicBed.GetBedsPayload(self)
     }
 end
 
@@ -484,13 +489,21 @@ function Map3D:UpdatePlayerSeparation()
     local moved = {}
     for i = 1, #users do
         local a = self.players[users[i]]
+        if a.sleepBedId ~= nil then
+            goto continue_sep_a
+        end
         for j = i + 1, #users do
             local b = self.players[users[j]]
+            if b.sleepBedId ~= nil then
+                goto continue_sep_b
+            end
             if self:SeparatePlayers(a, b) then
                 moved[a.userId] = true
                 moved[b.userId] = true
             end
+            ::continue_sep_b::
         end
+        ::continue_sep_a::
     end
 
     for userId in pairs(moved) do
@@ -645,6 +658,15 @@ function Map3D:SendChat(senderId, message)
     end
 end
 
+-- 上下床请求 (服务器权威: 校验占用/距离, 冻结睡觉玩家)
+--- 详见 Map3DLogicBed.lua
+---@param userId    string  请求者userId (取自会话, 不信任客户端)
+---@param bedId     string  目标床ID
+---@param wantSleep boolean true=上床睡觉 false=下床起床
+function Map3D:PlayerSleepReq(userId, bedId, wantSleep)
+    Map3DLogicBed.PlayerSleepReq(self, userId, bedId, wantSleep)
+end
+
 -- 更新子弹
 function Map3D:UpdateBullets()
     local timeMS = TimeMgr.GetMS()
@@ -724,7 +746,8 @@ function Map3D:UpdateBullets()
 
         for _, o in ipairs(candidates) do
             local player = self.players[o.userId]
-            if player ~= nil and o.userId ~= bullet.shooterId then
+            -- 睡觉中的玩家免疫子弹 (冻结在床上)
+            if player ~= nil and o.userId ~= bullet.shooterId and player.sleepBedId == nil then
                 local hit, t = self:CheckBulletPlayerCCD(bullet, player)
                 if hit and t < minT then
                     minT = t
@@ -1079,7 +1102,10 @@ function Map3D:FixedUpdate(timeMS)
     local PlayerMgr = require("PlayerMgrLogic")
 
     for userId, mapPlayer in pairs(self.players) do
-        self:PlayerPhysicsMove(mapPlayer)
+        -- 睡觉中的玩家被服务器冻结: 不物理移动 (位置锁定在床上)
+        if mapPlayer.sleepBedId == nil then
+            self:PlayerPhysicsMove(mapPlayer)
+        end
     end
 
     -- 玩家间分离碰撞, 防止穿模重叠 (在子弹碰撞检测前, 保证用最新位置判定)

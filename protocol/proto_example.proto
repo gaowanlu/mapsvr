@@ -291,6 +291,46 @@ message ProtoCSMap3DNotifyMapData
   // 地图中心绝对坐标(客户端据此校准本地原点, 玩家环状出生点不等于地图中心)
   int32 centerX=5;
   int32 centerZ=6;
+  // 地图内的床(可上床睡觉, 一床一人; 服务器权威)
+  repeated ProtoMap3DBedData beds=7;
+}
+
+// Map3D床数据
+// 坐标为地图本地坐标×1000: x/z 相对地图中心(出生点), y 相对地面(床面高度)
+message ProtoMap3DBedData
+{
+  string bedId=1;
+  int32 x=2;
+  int32 y=3;
+  int32 z=4;
+  int32 w=5;
+  int32 h=6;
+  int32 d=7;
+  // Y轴朝向角×1000 (决定床头方向, 客户端据此摆放枕头/人物朝向)
+  int32 rotY=8;
+  uint32 color=9;
+}
+
+// Map3D上下床请求
+// PROTO_CMD_CS_REQ_MAP3D_SLEEP (请求者由会话playerId确定, 不信任客户端)
+message ProtoCSReqMap3DSleep
+{
+  string bedId=1;
+  // 1=上床睡觉 0=下床起床
+  bool sleep=2;
+}
+
+// Map3D上下床状态广播(服务器→房间内所有玩家, 含本人)
+// PROTO_CMD_CS_MAP3D_NOTIFY_SLEEP
+message ProtoCSMap3DNotifySleep
+{
+  string bedId=1;
+  string userId=2;
+  bool sleeping=3;
+  // 床的绝对坐标(客户端校准后用), 睡觉时玩家位置被服务器移到床上
+  int32 x=4;
+  int32 y=5;
+  int32 z=6;
 }
 
 // Map3D子弹击中墙体/建筑通知(碰撞点)

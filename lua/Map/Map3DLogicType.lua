@@ -35,6 +35,7 @@
 ---@field map3DOctree    Map3DOctree | nil 所在地图八叉树节点
 ---@field lastChatMS     integer | nil     上一次发送聊天消息的时间(ms), 用于限频
 ---@field lastShootMS    integer | nil     上一次射击的时间(ms), 用于开火限频
+---@field sleepBedId     string | nil      正在睡的床ID (nil=未睡觉), 非nil时该玩家被服务器冻结
 
 ---@class Map3DBulletType
 ---@field bulletId        string
@@ -49,6 +50,19 @@
 ---@field collisionRadius number
 ---@field remainingDist   number  剩余射程: 每 tick 扣减本 tick 位移, 耗尽即销毁 (距离模型, 保证总位移==shootDist)
 
+---@class Map3DBedType
+---@field bedId   string       床ID ("bed1"...)
+---@field x       number       本地中心X(相对地图中心)
+---@field z       number       本地中心Z(相对地图中心)
+---@field w       number       宽(X)
+---@field d       number       深(Z)
+---@field rotY    number       Y轴朝向角(弧度, 床头方向)
+---@field color   integer      颜色(0xRRGGBB)
+---@field absX    number       绝对中心X
+---@field absY    number       绝对床面Y (groundY + 床面高)
+---@field absZ    number       绝对中心Z
+---@field sleeper string | nil 睡觉玩家userId (nil=空床)
+
 ---@class Map3DType
 ---@field MapDbData       Map3DDbDataType
 ---@field players         table<string, Map3DPlayerType>      userId到玩家对象的映射
@@ -61,6 +75,7 @@
 ---@field renderBoxes     table<integer, Map3DBoxConfig>      下发给客户端渲染的盒(地图本地坐标)
 ---@field maxBodyRadius   number                              地图内玩家的最大身体半径(子弹命中八叉树查询扩展用)
 ---@field bulletCount     integer                             当前存活子弹数(与 self.bullets 同步维护)
+---@field beds            table<string, Map3DBedType>         地图内的床 (bedId→床)
 
 ---@class Map3DCollideBoxType
 ---@field x  number 中心X(绝对坐标)

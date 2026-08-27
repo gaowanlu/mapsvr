@@ -99,6 +99,7 @@ function MapSvr.OnReload()
     table.insert(reloadList, "TimeMgrLogic")
     table.insert(reloadList, "CoroutineMgrLogic")
     table.insert(reloadList, "Map3DLogic")
+    table.insert(reloadList, "Map3DLogicBed")
     table.insert(reloadList, "Map3DMgrLogic")
 
     for i, name in ipairs(reloadList) do

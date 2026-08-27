@@ -313,6 +313,20 @@ MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_CHAT] = function (
     player:GetComponents().map3d:MapChatReq(message)
 end
 
+--- PROTO_CMD_CS_REQ_MAP3D_SLEEP 3D地图上下床请求
+--- 请求者身份取自会话playerId, 服务器权威校验占用/距离后广播状态
+---@param message ProtoLua_ProtoCSReqMap3DSleep
+MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_MAP3D_SLEEP] = function (
+    playerId, clientGID, workerIdx, cmd, message
+)
+    local player = PlayerMgr.GetPlayerByPlayerId(playerId)
+    if player == nil then
+        return
+    end
+
+    player:GetComponents().map3d:MapSleepReq(message)
+end
+
 ---@param message ProtoLua_ProtoCSReqCreateUser
 MsgHandlerFromClient[ProtoLua_ProtoCmd.PROTO_CMD_CS_REQ_CREATE_USER] = function (
     playerId, clientGID, workerIdx, cmd, message
