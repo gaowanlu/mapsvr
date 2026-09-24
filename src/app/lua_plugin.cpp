@@ -137,29 +137,18 @@ void lua_plugin::free_main_lua()
 
 void lua_plugin::free_worker_lua()
 {
-    if (this->worker_lua_state)
+    for (int i = 0; i < (int)this->worker_lua_state.size(); i++)
     {
-        for (int i = 0; i < this->worker_lua_cnt; i++)
-        {
-            free_worker_lua(i);
-        }
-        delete[] this->worker_lua_state;
-    }
-    if (this->worker_lua_state_be_reload)
-    {
-        delete[] this->worker_lua_state_be_reload;
+        free_worker_lua(i);
     }
 }
 
 void lua_plugin::free_worker_lua(int worker_idx)
 {
-    if (this->worker_lua_state)
+    if (this->worker_lua_state[worker_idx])
     {
-        if (this->worker_lua_state[worker_idx])
-        {
-            lua_close(this->worker_lua_state[worker_idx]);
-            this->worker_lua_state[worker_idx] = nullptr;
-        }
+        lua_close(this->worker_lua_state[worker_idx]);
+        this->worker_lua_state[worker_idx] = nullptr;
     }
 }
 
@@ -175,7 +164,7 @@ void lua_plugin::free_other_lua()
 void lua_plugin::reload()
 {
     this->lua_state_be_reload = true;
-    for (int i = 0; i < this->worker_lua_cnt; i++)
+    for (int i = 0; i < (int)this->worker_lua_state_be_reload.size(); i++)
     {
         this->worker_lua_state_be_reload[i] = true;
     }
@@ -190,13 +179,8 @@ void lua_plugin::on_main_init(const std::string &lua_dir, const std::string &app
     // init worker lua vm
     {
         this->worker_lua_cnt = worker_cnt;
-        this->worker_lua_state = new lua_State *[this->worker_lua_cnt];
-        this->worker_lua_state_be_reload = new bool[this->worker_lua_cnt];
-        for (int i = 0; i < this->worker_lua_cnt; i++)
-        {
-            this->worker_lua_state[i] = nullptr;
-            this->worker_lua_state_be_reload[i] = false;
-        }
+        this->worker_lua_state.resize(this->worker_lua_cnt, nullptr);
+        this->worker_lua_state_be_reload.resize(this->worker_lua_cnt);
     }
 
     real_on_main_init();
@@ -328,7 +312,7 @@ void lua_plugin::exe_OnMainStop()
 
 void lua_plugin::exe_OnMainTick()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->lua_state);
 
@@ -342,7 +326,7 @@ void lua_plugin::exe_OnMainTick()
 
 void lua_plugin::exe_OnMainReload()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->lua_state);
     lua_getglobal(this->lua_state, "OnMainReload");
@@ -448,7 +432,7 @@ void lua_plugin::exe_OnLuaVMRecvMessage(lua_State *lua_state,
     }
     else
     {
-        for (int i = 0; i < lua_plugin_ptr->worker_lua_cnt; i++)
+        for (int i = 0; i < (int)lua_plugin_ptr->worker_lua_state.size(); i++)
         {
             if (lua_state == lua_plugin_ptr->worker_lua_state[i])
             {
@@ -579,7 +563,7 @@ void lua_plugin::on_other_tick()
 
 void lua_plugin::exe_OnOtherInit()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->other_lua_state);
     lua_getglobal(this->other_lua_state, "OnOtherInit");
@@ -592,7 +576,7 @@ void lua_plugin::exe_OnOtherInit()
 
 void lua_plugin::exe_OnOtherStop()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->other_lua_state);
     lua_getglobal(this->other_lua_state, "OnOtherStop");
@@ -605,7 +589,7 @@ void lua_plugin::exe_OnOtherStop()
 
 void lua_plugin::exe_OnOtherTick()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->other_lua_state);
     lua_getglobal(this->other_lua_state, "OnOtherTick");
@@ -618,7 +602,7 @@ void lua_plugin::exe_OnOtherTick()
 
 void lua_plugin::exe_OnOtherReload()
 {
-    static int isok = LUA_OK;
+    int isok = LUA_OK;
     // 添加错误处理函数
     int err_msgh = lua_plugin_push_lua_error_handler(this->other_lua_state);
     lua_getglobal(this->other_lua_state, "OnOtherReload");
